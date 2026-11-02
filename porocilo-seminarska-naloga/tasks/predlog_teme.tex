@@ -1,0 +1,67 @@
+% Prijava teme seminarske naloge -- NPMP 2026/2027, kvantno procesiranje
+% Skupina 20. Prevajanje: pdflatex predlog_teme.tex
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[slovene]{babel}
+\usepackage{mathptmx}
+\usepackage{courier}
+\usepackage[a4paper,margin=1.7cm,top=1.4cm,bottom=1.4cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlist{nosep,leftmargin=1.2em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\pagestyle{empty}
+\sloppy
+
+\begin{document}
+
+{\large\textbf{Prijava teme seminarske naloge -- NPMP 2026/27, kvantno procesiranje}}\\
+\textbf{Skupina 20:} Dominik Krašovec, Erik Radovičevič \hfill Ljubljana, 2.\,11.\,2026
+
+\medskip
+\textbf{Naslov:} \emph{Stanja GHZ na procesorju IBM}
+
+\textbf{Raziskovalno vprašanje.} Do koliko kubitov $N$ lahko na šumnem procesorju IBM Heron (ibm\_fez, 156 kubitov)
+pripravimo stanje GHZ, da meritev še pokaže prepletenost? Kako izbira kubitov po povezavah čipa (veriga proti drevesu)
+vpliva na to mejo?
+
+\textbf{Stanje GHZ.} $N$ kubitov v stanju
+$\lvert\mathrm{GHZ}_N\rangle=\tfrac{1}{\sqrt2}(\lvert0\rangle^{\otimes N}+\lvert1\rangle^{\otimes N})$ je prepletenih:
+stanja ni mogoče zapisati kot stanja vsakega kubita posebej. Stanje pripravimo z vrati H na prvem kubitu in $N-1$ vrati
+CNOT po povezavah čipa. V idealnem primeru so po vratih H vsi nizi izidov s sodo pariteto enako verjetni.
+
+\textbf{Hipoteza.} Na idealnem simulatorju je priprava točna. Šum (napake dvokubitnih vrat, čakanje kubitov, napake branja)
+kakovost stanja z večanjem $N$ zmanjšuje. Na drevesu povezanih kubitov je vezje plitvejše kot na verigi, zato pričakujemo,
+da drevo pri istem $N$ obdrži več prepletenosti. Stanja GHZ so na procesorjih IBM že pripravili s 27 kubiti; zanima nas,
+koliko pridemo na novejšem procesorju ibm\_fez z vezjem, ki ga lahko sestavi začetnik, in z brezplačnim procesorskim časom.
+
+\textbf{Metrike.}
+\begin{itemize}
+\item Lastnosti vezja pred prevajanjem in po njem: število kubitov, globina, število dvokubitnih vrat, trajanje.
+\item Primerjava idealnega simulatorja, simulatorja s šumnim modelom procesorja in procesorja ibm\_fez pri istem $N$.
+\item Izbira kubitov po objavljenih napakah procesorja (veriga in drevo).
+\end{itemize}
+
+\textbf{Načrt poskusov.}
+\begin{enumerate}
+\item \emph{Vezje:} priprava stanja GHZ z vrati H in $N-1$ vrati CNOT po povezavah čipa (brez dodanih vrat SWAP).
+\item \emph{Idealni simulator} (Qiskit Aer) in \emph{simulator s šumnim modelom} (FakeFez).
+\item \emph{Procesor ibm\_fez:} naloge z vnaprej določeno zgornjo mejo trajanja (paket Open Plan: 600~s v 28 dneh).
+\item Primerjava veriga / drevo in razprava o omejitvah (izbrani kubiti, meritev enega dne).
+\end{enumerate}
+
+\textbf{Procesorski čas.} Paket Open Plan omogoča 600~s v 28 dneh; vsaka naloga ima vnaprej določeno zgornjo mejo
+trajanja. Pred oddajo bomo porabo ocenili in je ne bomo prekoračili.
+
+\textbf{Orodja.} Python~3, Qiskit~2.6 (vezja, prevajanje), Qiskit Aer 0.18 (idealni in šumni simulator), qiskit-ibm-runtime
+0.51 (SamplerV2), NumPy, Matplotlib, pytest; IBM Quantum Open Plan; \LaTeX{} (predloga zbornika); GitHub.\par
+
+\textbf{Razdelitev dela.} Oba člana (Dominik in Erik) delava na vseh delih naloge: gradnja vezij in izbira kubitov,
+simulacije, zagon na IBM in beleženje ID naloge ter porabe časa, analiza, pregled literature, poročilo, prosojnice in
+repozitorij (README). Vsak del napiše ali izvede eden, drugi ga pregleda in neodvisno ponovi.
+
+\end{document}
