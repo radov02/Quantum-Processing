@@ -8,6 +8,7 @@
 \usepackage{courier}
 \usepackage[a4paper,margin=1.7cm,top=1.4cm,bottom=1.4cm]{geometry}
 \usepackage{amsmath}
+\usepackage{physics}
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
@@ -20,48 +21,59 @@
 \begin{document}
 
 {\large\textbf{Prijava teme seminarske naloge -- NPMP 2026/27, kvantno procesiranje}}\\
-\textbf{Skupina 20:} Dominik Krašovec, Erik Radovičevič \hfill Ljubljana, 2.\,11.\,2026
+\textbf{Skupina 20:} Dominik Krašovec, Erik Radovičevič \hfill Ljubljana, 15.\,11.\,2026
 
 \medskip
-\textbf{Naslov:} \emph{Stanja GHZ na procesorju IBM}
+\textbf{Naslov:} \emph{Igra GHZ na procesorju IBM: kvantna in klasična strategija ob šumu}
 
-\textbf{Raziskovalno vprašanje.} Do koliko kubitov $N$ lahko na šumnem procesorju IBM Heron (ibm\_fez, 156 kubitov)
-pripravimo stanje GHZ, da meritev še pokaže prepletenost? Kako izbira kubitov po povezavah čipa (veriga proti drevesu)
-vpliva na to mejo?
+\textbf{Raziskovalno vprašanje.} Do koliko igralcev $N$ kvantna strategija na šumnem procesorju IBM Heron (ibm\_fez, 156
+kubitov) v igri GHZ še premaga najboljšo klasično strategijo? Koliko šum procesorja zmanjša delež zmag glede na idealni
+simulator in kako dobro to napove simulator s šumnim modelom?
 
-\textbf{Stanje GHZ.} $N$ kubitov v stanju
-$\lvert\mathrm{GHZ}_N\rangle=\tfrac{1}{\sqrt2}(\lvert0\rangle^{\otimes N}+\lvert1\rangle^{\otimes N})$ je prepletenih:
-stanja ni mogoče zapisati kot stanja vsakega kubita posebej. Stanje pripravimo z vrati H na prvem kubitu in $N-1$ vrati
-CNOT po povezavah čipa. V idealnem primeru so po vratih H vsi nizi izidov s sodo pariteto enako verjetni.
+\textbf{Igra GHZ.} $N$ igralcev dobi vsak en bit $x_i$ (vsota je soda) in brez pogovora odgovori z bitom $y_i$; zmagajo, če je
+$y_1\oplus\dots\oplus y_N=\tfrac12(x_1+\dots+x_N)\bmod 2$. Če si igralci pred igro razdelijo prepleteno stanje GHZ
+$\ket{\mathrm{GHZ}_N}=\tfrac{1}{\sqrt2}(\ket{0}^{\otimes N}+\ket{1}^{\otimes N})$ (igralec z $x_i=1$ izvede vrata S, nato vsi
+vrata H in meritev), v idealnem primeru vedno zmagajo. Najboljša klasična strategija zmaga z verjetnostjo največ
+$1/2+2^{-\lceil N/2\rceil}$ (Brassard, Broadbent in Tapp, 2005). To je klasična rešitev istega problema, s katero primerjamo
+rezultat.
 
-\textbf{Hipoteza.} Na idealnem simulatorju je priprava točna. Šum (napake dvokubitnih vrat, čakanje kubitov, napake branja)
-kakovost stanja z večanjem $N$ zmanjšuje. Na drevesu povezanih kubitov je vezje plitvejše kot na verigi, zato pričakujemo,
-da drevo pri istem $N$ obdrži več prepletenosti. Stanja GHZ so na procesorjih IBM že pripravili s 27 kubiti; zanima nas,
-koliko pridemo na novejšem procesorju ibm\_fez z vezjem, ki ga lahko sestavi začetnik, in z brezplačnim procesorskim časom.
+\textbf{Hipoteza.} Na idealnem simulatorju je delež zmag 1. Šum (napake dvokubitnih vrat, čakanje kubitov, napake branja)
+delež zmag z večanjem $N$ zmanjšuje proti $1/2$. Tudi klasična meja se z $N$ hitro približa $1/2$ (0,75 pri $N=3$, 0,53 pri
+$N=10$, manj kot 0,5001 pri $N\ge 30$), zato pričakujemo, da procesor klasično strategijo premaga do več deset igralcev.
+Simulacija s šumnim modelom procesorja napove delež zmag 0,98 pri $N=3$, 0,81 pri $N=20$ in 0,57 pri $N=50$, torej nad
+klasično mejo vsaj do 50 igralcev.
 
 \textbf{Metrike.}
 \begin{itemize}
+\item Delež zmag v igri: za vsak $N$ 8 naključnih veljavnih vhodov, 1000 ponovitev na vezje na procesorju; povprečje po
+      vhodih in njegova standardna napaka $\sigma$.
+\item Klasična meja $1/2+2^{-\lceil N/2\rceil}$; procesor klasično strategijo premaga, če delež zmag, zmanjšan za $2\sigma$,
+      presega mejo.
+\item Vpliv šuma: razlika deleža zmag med idealnim simulatorjem, simulatorjem s šumnim modelom in procesorjem pri istem $N$.
 \item Lastnosti vezja pred prevajanjem in po njem: število kubitov, globina, število dvokubitnih vrat, trajanje.
-\item Primerjava idealnega simulatorja, simulatorja s šumnim modelom procesorja in procesorja ibm\_fez pri istem $N$.
-\item Izbira kubitov po objavljenih napakah procesorja (veriga in drevo).
 \end{itemize}
 
 \textbf{Načrt poskusov.}
 \begin{enumerate}
-\item \emph{Vezje:} priprava stanja GHZ z vrati H in $N-1$ vrati CNOT po povezavah čipa (brez dodanih vrat SWAP).
-\item \emph{Idealni simulator} (Qiskit Aer) in \emph{simulator s šumnim modelom} (FakeFez).
-\item \emph{Procesor ibm\_fez:} naloge z vnaprej določeno zgornjo mejo trajanja (paket Open Plan: 600~s v 28 dneh).
-\item Primerjava veriga / drevo in razprava o omejitvah (izbrani kubiti, meritev enega dne).
+\item \emph{Vezje:} priprava stanja GHZ z vrati H in $N-1$ vrati CNOT po povezavah čipa (brez dodanih vrat SWAP), kubiti
+      izbrani po objavljenih napakah procesorja; poteza igralcev doda le enokubitna vrata S in H ter meritev.
+\item \emph{Klasična rešitev:} formula za mejo in pregled vseh determinističnih strategij za $N=3$ do 12.
+\item \emph{Idealni simulator} (Qiskit Aer): delež zmag 1 za vse veljavne vhode pri majhnih $N$ in za izbrane vhode do $N=50$.
+\item \emph{Simulator s šumnim modelom} (FakeFez, posnetek objavljenih napak ibm\_fez): $N=3, 5, 10, 20, 30, 40, 50$.
+\item \emph{Procesor ibm\_fez:} ena naloga, $N=3, 5, 10, 20, 30, 40, 50, 60, 75$, po 8 vhodov (72 vezij).
+\item Primerjava idealni simulator / šumni simulator / procesor / klasična meja in razprava o omejitvah (izbrani kubiti,
+      meritev enega dne, 8 vhodov na $N$).
 \end{enumerate}
 
-\textbf{Procesorski čas.} Paket Open Plan omogoča 600~s v 28 dneh; vsaka naloga ima vnaprej določeno zgornjo mejo
-trajanja. Pred oddajo bomo porabo ocenili in je ne bomo prekoračili.
+\textbf{Procesorski čas.} Paket Open Plan omogoča 600~s v 28 dneh; vsaka naloga ima vnaprej določeno zgornjo mejo trajanja.
+Naloga z igro je že izvedena (11.\,11.\,2026): 72 vezij, 1000 ponovitev na vezje, 21~s procesorskega časa. Preostali čas
+zadošča za morebitno ponovitev.
 
 \textbf{Orodja.} Python~3, Qiskit~2.6 (vezja, prevajanje), Qiskit Aer 0.18 (idealni in šumni simulator), qiskit-ibm-runtime
 0.51 (SamplerV2), NumPy, Matplotlib, pytest; IBM Quantum Open Plan; \LaTeX{} (predloga zbornika); GitHub.\par
 
-\textbf{Razdelitev dela.} Oba člana (Dominik in Erik) delava na vseh delih naloge: gradnja vezij in izbira kubitov,
-simulacije, zagon na IBM in beleženje ID naloge ter porabe časa, analiza, pregled literature, poročilo, prosojnice in
-repozitorij (README). Vsak del napiše ali izvede eden, drugi ga pregleda in neodvisno ponovi.
+\textbf{Razdelitev dela.} Oba člana (Dominik in Erik) delava na vseh delih naloge: gradnja vezij in izbira kubitov, igra GHZ in
+klasična meja, simulacije, zagon na IBM in beleženje ID naloge ter porabe časa, analiza, pregled literature, poročilo,
+prosojnice in repozitorij (README). Vsak del napiše ali izvede eden, drugi ga pregleda in neodvisno ponovi.
 
 \end{document}
