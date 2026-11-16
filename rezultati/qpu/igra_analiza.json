@@ -54,6 +54,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.75,
    "lastnosti_pred": {
     "kubiti": 3,
@@ -149,6 +150,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.625,
    "lastnosti_pred": {
     "kubiti": 5,
@@ -289,6 +291,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.53125,
    "lastnosti_pred": {
     "kubiti": 10,
@@ -519,6 +522,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.5009765625,
    "lastnosti_pred": {
     "kubiti": 20,
@@ -839,6 +843,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.500030517578125,
    "lastnosti_pred": {
     "kubiti": 30,
@@ -1249,6 +1254,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.5000009536743164,
    "lastnosti_pred": {
     "kubiti": 40,
@@ -1749,6 +1755,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.5000000298023224,
    "lastnosti_pred": {
     "kubiti": 50,
@@ -2339,6 +2346,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.5000000009313226,
    "lastnosti_pred": {
     "kubiti": 60,
@@ -3064,6 +3072,7 @@
     ]
    ],
    "shots": 1000,
+   "kopij": 1,
    "klasicna_meja": 0.500000000003638,
    "lastnosti_pred": {
     "kubiti": 75,

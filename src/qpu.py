@@ -2,7 +2,10 @@
 
 En posel vsebuje za vsak N iz --n K veljavnih vhodov (--k, seme vhodov --seme + N), vsak vhod je eno vezje: priprava
 GHZ na drevesu (src/ghz.py), nato poteza igralcev (src/igra.py). Delež zmag poročamo brez ublažitve branja (igralci
-dobijo, kar preberejo). Vsako vezje dobi --shots posnetkov.
+dobijo, kar preberejo). Vsako vezje dobi --shots posnetkov; z `--kopije-od N0 R` je vsako vezje z N >= N0 v poslu
+R-krat (analiza izide kopij sešteje), tako da večji N dobijo več posnetkov brez različnih nastavitev v istem poslu.
+Z `--kalibracija` posel dobi še dve vezji za preverbo branja (vsi izbrani kubiti v stanju 0 in vsi v stanju 1); z
+njima le izmerimo napako branja vsakega kubita, deleža zmag ne popravljamo.
 
 Ukazi (nič se ne pošlje brez `poslji`; `poslji` brez --max-sekund se ne izvede):
   nacrt     zgradi in prevede vezja, izpiše tabelo, oceno časa in preostanek na instanci
@@ -30,6 +33,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from qiskit import QuantumCircuit
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ghz  # noqa: E402
 import igra  # noqa: E402
@@ -67,8 +72,31 @@ def merjeni_kubiti(qc):
     return {qc.find_bit(i.clbits[0]).index: qc.find_bit(i.qubits[0]).index for i in qc.data if i.operation.name == "measure"}
 
 
-def zgradi_posel_igre(backend, ns, k, seme):
-    """Vezja enega posla za igro GHZ na drevesu: za vsak N k veljavnih vhodov (seme + N).
+def kalibracijski_vezji(backend, kubiti):
+    """Dve vezji za preverbo branja na podanih kubitih čipa: vsi v stanju 0 (brez vrat) in vsi v stanju 1 (vrata X),
+    nato meritev. Preveri, da vezji nimata dvokubitnih vrat in merita podane kubite."""
+    n = len(kubiti)
+    nic, ena = QuantumCircuit(n, name="kal_0"), QuantumCircuit(n, name="kal_1")
+    ena.x(range(n))
+    for qc in (nic, ena):
+        qc.measure_all()
+    isa = ghz.prevedi([nic, ena], backend, kubiti)
+    for qc, z_vrati in zip(isa, (set(), set(kubiti))):
+        if st_dvokubitnih(qc) != 0:
+            raise RuntimeError(f"{qc.name}: kalibracijsko vezje ima dvokubitna vrata")
+        if merjeni_kubiti(qc) != dict(enumerate(kubiti)):
+            raise RuntimeError(f"{qc.name}: meritve niso na izbranih kubitih")
+        z_x = {qc.find_bit(q).index for i in qc.data if i.operation.name not in ("barrier", "delay", "measure")
+               for q in i.qubits}
+        if z_x != z_vrati:
+            raise RuntimeError(f"{qc.name}: vrata niso na pričakovanih kubitih (kal_0 brez vrat, kal_1 X na vseh)")
+    return isa
+
+
+def zgradi_posel_igre(backend, ns, k, seme, kalibracija=False, kopije_od=None):
+    """Vezja enega posla za igro GHZ na drevesu: za vsak N k veljavnih vhodov (seme + N); s `kalibracija` na koncu še
+    dve vezji za preverbo branja na vseh kubitih, ki jih posel uporablja. Z `kopije_od = (N0, R)` je vsako vezje z
+    N >= N0 v poslu R-krat zapored (kopije istega vhoda so skupaj).
 
     Pred oddajo preveri, da ima vsako prevedeno vezje N - 1 dvokubitnih vrat in da meri izbrane kubite."""
     poskusi, vezja = [], []
@@ -83,12 +111,26 @@ def zgradi_posel_igre(backend, ns, k, seme):
             if merjeni_kubiti(qc) != dict(enumerate(z.postavitev)):
                 raise RuntimeError(f"{qc.name}: meritve niso na izbranih kubitih")
         j = igra.najglobje(logicna)
+        kopij = kopije_od[1] if kopije_od and n >= kopije_od[0] else 1
+        if kopij > 1:  # kopije istega vhoda zapored: vezje j, kopija c je na mestu zacetek + j * kopij + c
+            isa_vsa = [qc.copy(name=f"{qc.name}_p{c}") for qc in isa for c in range(kopij)]
+        else:
+            isa_vsa = isa
         poskusi.append({"n": n, "postavitev": z.postavitev, "vhodi": xs, "zacetek": len(vezja),
-                        "st_vezij": len(isa),
+                        "st_vezij": len(isa_vsa), "kopij": kopij,
                         "lastnosti_pred": ghz.lastnosti(logicna[j]),
                         "lastnosti_po": ghz.lastnosti(isa[j], backend.target)})
+        vezja += isa_vsa
+    opis = {"poskusi": poskusi}
+    if kalibracija:
+        kubiti = sorted({q for p in poskusi for q in p["postavitev"]})
+        isa = kalibracijski_vezji(backend, kubiti)
+        # objavljena napaka branja istih kubitov ob oddaji, za primerjavo z izmerjeno
+        objavljena = [getattr(backend.target["measure"].get((q,)), "error", None) for q in kubiti]
+        opis["kalibracija"] = {"kubiti": kubiti, "zacetek": len(vezja), "st_vezij": len(isa),
+                               "objavljena_napaka": objavljena}
         vezja += isa
-    return {"poskusi": poskusi}, vezja
+    return opis, vezja
 
 
 def posnetkov_posla(vezja, a):
@@ -102,8 +144,12 @@ def izpisi_nacrt(posli, a, poraba):
     for opis, vezja in posli:
         for p in opis["poskusi"]:
             lp = p["lastnosti_po"]
+            kopije = f" ({p['kopij']} kopije vsakega vhoda)" if p.get("kopij", 1) > 1 else ""
             print(f"{p['n']:>4}  {lp['globina']:>8} {lp['dvokubitna']:>4} {(lp['trajanje_us'] or 0):>8.2f}us "
-                  f" {p['st_vezij']:>3} x {a.shots}")
+                  f" {p['st_vezij']:>3} x {a.shots}{kopije}")
+        kal = opis.get("kalibracija")
+        if kal:
+            print(f" kal  preverba branja na {len(kal['kubiti'])} kubitih: {kal['st_vezij']} x {a.shots}")
         posnetkov += posnetkov_posla(vezja, a)
     st_vezij = sum(len(v) for _, v in posli)
     ocena = ocena_casa(len(posli), posnetkov)
@@ -126,9 +172,12 @@ def shrani(ime, podatki):
 
 
 def shrani_analizo(ime, podatki):
-    """Delež zmag po N -> rezultati/qpu/<ime>_analiza.json."""
+    """Delež zmag po N (in napake branja, če ima posel kalibracijski vezji) -> rezultati/qpu/<ime>_analiza.json."""
     analiza = {"ime": ime, "backend": podatki["backend"], "shots": podatki["shots"],
                "rezultati": igra.analiza_qpu(podatki)}
+    branje = igra.analiza_branja(podatki)
+    if branje:
+        analiza["branje"] = branje
     return shrani(f"{ime}_analiza", analiza)
 
 
@@ -210,12 +259,12 @@ def poslji(a, service, backend, poraba, posli):
             sys.exit(f"V {IZHOD} ni mogoče pisati ({e}): nič ni poslano.")
 
     podatki = {"ime": a.ime, "backend": backend.name, "fake": a.fake, "shots": a.shots,
-               "k": a.k, "seme": a.seme,
+               "kopije_od": getattr(a, "kopije_od", None), "k": a.k, "seme": a.seme,
                "brez_kubitov": a.brez_kubitov, "max_sekund": a.max_sekund,
                "model_posnetek_ms": CAS_POSNETEK_S * 1e3, "faktor_omejitve": a.faktor_omejitve, "posli": []}
     rezervirano = 0.0
     for opis, vezja in posli:
-        pricakovanih = sum(p["st_vezij"] for p in opis["poskusi"])
+        pricakovanih = sum(p["st_vezij"] for p in opis["poskusi"]) + (opis.get("kalibracija") or {}).get("st_vezij", 0)
         if pricakovanih != len(vezja):
             sys.exit(f"Posel ima {len(vezja)} vezij, opis pa jih navaja {pricakovanih}: nič ni poslano.")
         ocena_posla = ocena_casa(1, posnetkov_posla(vezja, a))
@@ -314,6 +363,10 @@ def main():
     ap.add_argument("--brez-kubitov", type=int, nargs="+", default=[],
                     help="kubiti, ki jih izbira ne sme uporabiti (privzeto nobeden)")
     ap.add_argument("--shots", type=int, default=1000)
+    ap.add_argument("--kopije-od", type=int, nargs=2, default=None, metavar=("N0", "R"),
+                    help="vsako vezje z N >= N0 je v poslu R-krat (R x --shots posnetkov na vhod)")
+    ap.add_argument("--kalibracija", action="store_true",
+                    help="dodaj dve vezji za preverbo branja (vsi izbrani kubiti v stanju 0 in v stanju 1)")
     ap.add_argument("--max-sekund", type=float, default=None, help="skupna meja porabe, dogovorjena pred zagonom")
     ap.add_argument("--max-poslov", type=int, default=None, help="največ poslov, dogovorjeno pred zagonom")
     ap.add_argument("--faktor-omejitve", type=float, default=2.0,
@@ -327,8 +380,8 @@ def main():
         ap.error("--faktor-omejitve mora biti vsaj 1")
     if a.model_posnetek_ms is not None and a.model_posnetek_ms <= 0:
         ap.error("--model-posnetek-ms mora biti pozitiven")
-    if a.shots <= 0:
-        ap.error("--shots mora biti pozitiven")
+    if a.shots <= 0 or (a.kopije_od and (a.kopije_od[0] < 3 or a.kopije_od[1] < 1)):
+        ap.error("--shots mora biti pozitiven, pri --kopije-od N0 R pa N0 vsaj 3 in R vsaj 1")
     if a.model_posnetek_ms:
         global CAS_POSNETEK_S
         CAS_POSNETEK_S = a.model_posnetek_ms / 1e3
@@ -347,7 +400,7 @@ def main():
         print(f"procesor {backend.name}: deluje={st.operational}, v vrsti={st.pending_jobs}")
         if not st.operational:
             sys.exit("Procesor ne deluje: nič ni poslano.")
-    posli = [zgradi_posel_igre(backend, a.n, a.k, a.seme)]
+    posli = [zgradi_posel_igre(backend, a.n, a.k, a.seme, a.kalibracija, a.kopije_od)]
     izpisi_nacrt(posli, a, poraba)
     if a.ukaz == "nacrt":
         print("\nnacrt: nič ni bilo poslano.")

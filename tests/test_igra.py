@@ -143,3 +143,9 @@ def test_zaokrozevanje_tabele_polovica_navzgor():
     assert igra._z_napako(0.94875, 0.0030) == "0{,}949(3)"
 
 
+def test_samo_napake_branja_na_rocnih_vrednostih():
+    """Dva kubita z napako branja 0,1 in 0,2 (povprečje p10 in p01): pariteta ostane prava z verjetnostjo
+    1/2 + 1/2 x 0,8 x 0,6 = 0,74; brez napak je ocena 1."""
+    branje = {"kubiti": [7, 9, 4], "p10": [0.05, 0.3, 0.0], "p01": [0.15, 0.1, 0.0]}
+    assert igra.samo_napake_branja([7, 9], branje) == pytest.approx(0.74)
+    assert igra.samo_napake_branja([4], branje) == 1.0

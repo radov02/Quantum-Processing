@@ -188,22 +188,67 @@ def analiza_qpu(podatki):
         if not posel.get("stetja"):
             continue
         for p in posel["poskusi"]:
+            kopij = p.get("kopij", 1)  # zapis prve naloge nima kopij: eno vezje na vhod
             stetja = posel["stetja"][p["zacetek"]:p["zacetek"] + p["st_vezij"]]
-            if not len(stetja) == len(p["vhodi"]) == p["st_vezij"]:
+            if not len(stetja) == len(p["vhodi"]) * kopij == p["st_vezij"]:
                 raise ValueError(f"N={p['n']}: {len(stetja)} slovarjev izidov, {len(p['vhodi'])} vhodov, "
-                                 f"st_vezij {p['st_vezij']}")
+                                 f"kopij {kopij}, st_vezij {p['st_vezij']}")
             if any(sum(st.values()) != podatki["shots"] for st in stetja):
                 raise ValueError(f"N={p['n']}: slovar izidov nima {podatki['shots']} posnetkov")
-            shots = podatki["shots"]
+            if kopij > 1:  # kopije istega vhoda so zapored: njihove izide seštejemo
+                imena = (posel.get("imena_vezij") or [])[p["zacetek"]:p["zacetek"] + p["st_vezij"]]
+                if imena:  # ime kopije je <ime vezja>_p<c>: vsaka skupina mora imeti eno ime, skupine različna
+                    skupine = [{i.rsplit("_p", 1)[0] for i in imena[j * kopij:(j + 1) * kopij]}
+                               for j in range(len(p["vhodi"]))]
+                    if any(len(s) != 1 for s in skupine) or len(set().union(*skupine)) != len(skupine):
+                        raise ValueError(f"N={p['n']}: kopije vezij niso zapored po vhodih")
+                stetja = [sum((Counter(st) for st in stetja[j * kopij:(j + 1) * kopij]), Counter())
+                          for j in range(len(p["vhodi"]))]
+            shots = podatki["shots"] * kopij  # posnetkov na vhod
             s = statistika([delez_zmag(st, x) for st, x in zip(stetja, p["vhodi"])], shots)
             vrstice.append({"n": p["n"], "job_id": posel["job_id"], "postavitev": p["postavitev"], "vhodi": p["vhodi"],
-                            "shots": shots, "klasicna_meja": klasicna_meja(p["n"]),
+                            "shots": shots, "kopij": kopij, "klasicna_meja": klasicna_meja(p["n"]),
                             "lastnosti_pred": p["lastnosti_pred"], "lastnosti_po": p["lastnosti_po"], **s})
     print(f"{'N':>4} {'meja':>7} {'zmage':>7} {'sigma':>7}  nad mejo (zmage - 2 sigma > meja)")
     for v in vrstice:
         nad = v["povprecje"] - 2 * v["sigma"] > v["klasicna_meja"]
         print(f"{v['n']:>4} {v['klasicna_meja']:>7.4f} {v['povprecje']:>7.4f} {v['sigma']:>7.4f}  {'da' if nad else 'ne'}")
     return vrstice
+
+
+def analiza_branja(podatki):
+    """Napaka branja vsakega kubita iz dveh kalibracijskih vezij posla (če ju ima): p10 je delež posnetkov, v katerih
+    smo kubit v stanju 0 prebrali kot 1, p01 pa delež, v katerih smo kubit v stanju 1 prebrali kot 0.
+
+    Vrne None, če posel nima kalibracijskih vezij ali izidov."""
+    for posel in podatki["posli"]:
+        kal = posel.get("kalibracija")
+        if not kal or not posel.get("stetja"):
+            continue
+        kubiti = kal["kubiti"]
+        imena = (posel.get("imena_vezij") or [])[kal["zacetek"]:kal["zacetek"] + 2]
+        if kal["st_vezij"] != 2 or imena not in ([], ["kal_0", "kal_1"]):
+            raise ValueError(f"kalibracijski vezji nista na pričakovanem mestu (st_vezij {kal['st_vezij']}, {imena})")
+        nic, ena = posel["stetja"][kal["zacetek"]:kal["zacetek"] + 2]
+        shots = podatki["shots"]
+        if sum(nic.values()) != shots or sum(ena.values()) != shots:
+            raise ValueError(f"kalibracijski vezji nimata {shots} posnetkov")
+        if any(len(niz.replace(" ", "")) != len(kubiti) for st in (nic, ena) for niz in st):
+            raise ValueError(f"izid kalibracijskega vezja nima {len(kubiti)} bitov")
+
+        def delez_enic(stetje, i):  # klasični bit i je i-ti znak z desne
+            return sum(k for niz, k in stetje.items() if niz.replace(" ", "")[len(kubiti) - 1 - i] == "1") / shots
+
+        p10 = [delez_enic(nic, i) for i in range(len(kubiti))]
+        p01 = [1 - delez_enic(ena, i) for i in range(len(kubiti))]
+        napaka = [(a + b) / 2 for a, b in zip(p10, p01)]
+        najslabsi = max(range(len(kubiti)), key=napaka.__getitem__)
+        print(f"branje: {len(kubiti)} kubitov, povprečna napaka {float(np.mean(napaka)):.4f}, "
+              f"največja {napaka[najslabsi]:.4f} (kubit {kubiti[najslabsi]})")
+        return {"kubiti": kubiti, "shots": shots, "p10": p10, "p01": p01, "povprecje": float(np.mean(napaka)),
+                "najslabsi_kubit": kubiti[najslabsi], "najvecja": napaka[najslabsi],
+                "objavljena_napaka": kal.get("objavljena_napaka")}
+    return None
 
 
 # ------------------------------------------------------------------------------------ tabela in graf
@@ -238,6 +283,33 @@ def _datum(ime_qpu):
     return f"{int(cas[8:10])}. {int(cas[5:7])}."
 
 
+def samo_napake_branja(postavitev, branje):
+    """Ocena deleža zmag, če bi bile napake branja edina napaka. Vsak prebrani bit se neodvisno obrne z izmerjeno
+    verjetnostjo e (povprečje p10 in p01 tega kubita); pariteta odgovorov ostane prava, če je obratov sodo, torej z
+    verjetnostjo 1/2 + 1/2 * produkt(1 - 2 e)."""
+    napaka = {q: (a + b) / 2 for q, a, b in zip(branje["kubiti"], branje["p10"], branje["p01"])}
+    return 0.5 + 0.5 * math.prod(1 - 2 * napaka[q] for q in postavitev)
+
+
+def tabela_ponovitve(ime_qpu, ime_qpu2):
+    """Vrstice tabele ponovljene meritve: prva in druga naloga na procesorju pri istem N; zadnji stolpec je ocena
+    deleža zmag samo z izmerjenimi napakami branja (če ima druga naloga vezji za preverbo branja)."""
+    prva, druga = _beri(QPU, f"{ime_qpu}_analiza"), _beri(QPU, f"{ime_qpu2}_analiza")
+    branje = json.loads((QPU / f"{ime_qpu2}_analiza.json").read_text()).get("branje")
+
+    def kriterij(r, meja):
+        return "da" if r["povprecje"] - 2 * r["sigma"] > meja else "ne"
+
+    print(f"\n% N & ibm_fez {_datum(ime_qpu)} & kriterij & ibm_fez {_datum(ime_qpu2)} & kriterij & ponovitev na vhod "
+          "& samo napake branja")
+    for n in sorted(druga):
+        a, b = prva.get(n), druga[n]
+        meja = klasicna_meja(n)
+        print(" & ".join([str(n), _z_napako(a["povprecje"], a["sigma"]) if a else "--", kriterij(a, meja) if a else "--",
+                          _z_napako(b["povprecje"], b["sigma"]), kriterij(b, meja), str(b.get("shots", "")),
+                          _st(samo_napake_branja(b["postavitev"], branje)) if branje else "--"]) + r" \\")
+
+
 def tabela(ime_sim, ime_qpu):
     sim, qpu = _beri(SIM, ime_sim), _beri(QPU, f"{ime_qpu}_analiza")
     print("% N & klasična meja & idealni sim. & šumni sim. & ibm_fez & nad mejo")
@@ -257,16 +329,17 @@ def tabela(ime_sim, ime_qpu):
                           str(po["dvokubitna"]), _st(po["trajanje_us"], 2)]) + r" \\")
 
 
-def graf(ime_sim, ime_qpu):
+def graf(ime_sim, ime_qpu, ime_qpu2=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     sim, qpu = _beri(SIM, ime_sim), _beri(QPU, f"{ime_qpu}_analiza")
+    qpu2 = _beri(QPU, f"{ime_qpu2}_analiza") if ime_qpu2 else {}
     plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42, "axes.spines.top": False, "axes.spines.right": False})
     fig, ax = plt.subplots(figsize=(4.6, 2.9))
     # klasična meja pri vsakem celem N, ne le pri izmerjenih (stopnica se spremeni pri vsakem lihem N)
-    vsi_n = list(range(3, max(set(sim) | set(qpu), default=3) + 1))
+    vsi_n = list(range(3, max(set(sim) | set(qpu) | set(qpu2), default=3) + 1))
     ax.step(vsi_n, [klasicna_meja(n) for n in vsi_n], "k--", where="mid", linewidth=1, label="klasična meja")
     if sim:
         x = sorted(sim)
@@ -277,7 +350,13 @@ def graf(ime_sim, ime_qpu):
     if qpu:
         x = sorted(qpu)
         ax.errorbar(x, [qpu[n]["povprecje"] for n in x], yerr=[2 * qpu[n]["sigma"] for n in x],
-                    fmt="o-", color="#D55E00", markersize=4, linewidth=1, capsize=2, label="ibm_fez")
+                    fmt="o-", color="#D55E00", markersize=4, linewidth=1, capsize=2,
+                    label=f"ibm_fez, {_datum(ime_qpu)}" if qpu2 else "ibm_fez")
+    if qpu2:
+        x = sorted(qpu2)
+        ax.errorbar(x, [qpu2[n]["povprecje"] for n in x], yerr=[2 * qpu2[n]["sigma"] for n in x],
+                    fmt="D--", color="#009E73", markersize=3.5, linewidth=1, capsize=2,
+                    label=f"ibm_fez, {_datum(ime_qpu2)}")
     ax.set_xlabel("število igralcev $N$")
     ax.set_ylabel("delež zmag")
     ax.set_ylim(0.45, 1.02)
@@ -296,6 +375,7 @@ def main():
     ap.add_argument("--shots", type=int, default=1000)
     ap.add_argument("--ime", default="igra_fakefez", help="ime simulacije (rezultati/sim/<ime>.json)")
     ap.add_argument("--qpu", default="igra", help="ime zagona na procesorju (rezultati/qpu/<ime>_analiza.json)")
+    ap.add_argument("--qpu2", default=None, help="ime ponovljenega zagona na procesorju (druga serija v grafu in tabeli)")
     ap.add_argument("--seme", type=int, default=5, help="seme vhodov: za N se uporabi seme + N")
     a = ap.parse_args()
     if a.ukaz == "meja":
@@ -306,8 +386,10 @@ def main():
         simuliraj(a.n, a.k, a.shots, a.ime, a.seme)
     elif a.ukaz == "tabela":
         tabela(a.ime, a.qpu)
+        if a.qpu2:
+            tabela_ponovitve(a.qpu, a.qpu2)
     else:
-        graf(a.ime, a.qpu)
+        graf(a.ime, a.qpu, a.qpu2)
 
 
 if __name__ == "__main__":

@@ -97,7 +97,7 @@ def dnevnik(okolje, monkeypatch, tmp_path):
     return tmp_path / "naloge.jsonl"
 
 def _argumenti(meja, **k):
-    nastavitve = {"max_sekund": meja, "fake": False, "ime": "t", "shots": 1000, "k": 2, "seme": 5,
+    nastavitve = {"max_sekund": meja, "fake": False, "ime": "t", "shots": 1000, "kopije_od": None, "k": 2, "seme": 5,
                   "max_poslov": None, "faktor_omejitve": 2.0, "brez_kubitov": []}
     nastavitve.update(k)
     return Namespace(**nastavitve)
@@ -213,6 +213,148 @@ def test_vsota_omejitev_ne_preseze_meje_ko_obracun_caka(okolje, posel_3_5):
     assert okolje == [10]  # drugi posel ne gre, ker prvi še drži celotno omejitev
     assert podatki["rezervirano_s"] <= 15
     assert okolje.posnetki == [[1000] * 4]  # vsa vezja z enakim številom posnetkov
+
+@pytest.fixture(scope="module")
+def posel_s_kalibracijo():
+    """N = 3 in 5, 2 vhoda, vezja z N >= 5 trikrat, na koncu kalibracijski vezji: 2 + 6 + 2 = 10 vezij."""
+    return qpu.zgradi_posel_igre(BACKEND, [3, 5], 2, 5, kalibracija=True, kopije_od=(5, 3))
+
+def test_kopije_vezij_so_zapored_in_enake(posel_s_kalibracijo, posel_3_5):
+    """--kopije-od 5 3: pri N = 5 je vsako od 2 vezij v poslu trikrat zapored (kopije istega vhoda skupaj), pri
+    N = 3 enkrat; kopije so enaka vezja kot v poslu brez kopij."""
+    opis, vezja = posel_s_kalibracijo
+    p3, p5 = opis["poskusi"]
+    assert (p3["zacetek"], p3["st_vezij"], p3["kopij"]) == (0, 2, 1)
+    assert (p5["zacetek"], p5["st_vezij"], p5["kopij"]) == (2, 6, 3)
+    assert len(p5["vhodi"]) == 2
+    imena = [qc.name for qc in vezja[2:8]]
+    assert [i.rsplit("_p", 1)[1] for i in imena] == ["0", "1", "2", "0", "1", "2"]
+    assert len({i.rsplit("_p", 1)[0] for i in imena[:3]}) == 1 and imena[0].rsplit("_p", 1)[0] != imena[3].rsplit("_p", 1)[0]
+    brez_kopij = posel_3_5[1][2:4]
+    for j, izvirnik in enumerate(brez_kopij):
+        for c in range(3):
+            kopija = vezja[2 + 3 * j + c]
+            assert kopija.count_ops() == izvirnik.count_ops()
+            assert qpu.merjeni_kubiti(kopija) == qpu.merjeni_kubiti(izvirnik) == dict(enumerate(p5["postavitev"]))
+
+def test_kalibracijski_vezji_merita_vse_izbrane_kubite(posel_s_kalibracijo):
+    """Z --kalibracija sta na koncu posla dve vezji brez dvokubitnih vrat, ki merita unijo izbranih kubitov; prvo
+    nima vrat X, drugo ima X na vsakem kubitu. Zapisana je objavljena napaka branja vsakega kubita."""
+    opis, vezja = posel_s_kalibracijo
+    kal = opis["kalibracija"]
+    assert kal["kubiti"] == sorted({q for p in opis["poskusi"] for q in p["postavitev"]})
+    assert (kal["zacetek"], kal["st_vezij"], len(vezja)) == (8, 2, 10)
+    nic, ena = vezja[8:]
+    assert (nic.name, ena.name) == ("kal_0", "kal_1")
+    for qc in (nic, ena):
+        assert qpu.st_dvokubitnih(qc) == 0
+        assert qpu.merjeni_kubiti(qc) == dict(enumerate(kal["kubiti"]))
+    assert nic.count_ops().get("x", 0) == 0 and ena.count_ops().get("x", 0) == len(kal["kubiti"])
+    assert len(kal["objavljena_napaka"]) == len(kal["kubiti"]) and all(0 < e < 0.5 for e in kal["objavljena_napaka"])
+
+def test_kalibracijsko_vezje_brez_vrat_x_se_zavrne(monkeypatch):
+    """Če bi prevajanje izgubilo vrata X (ali jih dodalo vezju kal_0), se gradnja posla ustavi pred oddajo."""
+    pravi = ghz.prevedi
+
+    def brez_x(vezja, backend, postavitev):
+        prevedena = pravi(vezja, backend, postavitev)
+        for qc in prevedena:
+            qc.data = [i for i in qc.data if i.operation.name != "x"]
+        return prevedena
+
+    monkeypatch.setattr(ghz, "prevedi", brez_x)
+    with pytest.raises(RuntimeError, match="vrata niso na pričakovanih kubitih"):
+        qpu.kalibracijski_vezji(BACKEND, [0, 1, 2])
+
+def test_posel_s_kopijami_ocena_in_oddaja(okolje, posel_s_kalibracijo):
+    """Vseh 10 vezij gre v en posel z enakim številom posnetkov; ocena in omejitev sledita številu vezij. Analiza
+    sešteje kopije: pri N = 5 ima vsak vhod 3000 posnetkov."""
+    opis, vezja = posel_s_kalibracijo
+    a = _argumenti(100, kopije_od=[5, 3])
+    assert qpu.posnetkov_posla(vezja, a) == 10000
+    podatki = qpu.poslji(a, None, BACKEND, PREOSTANEK, [(opis, vezja)])
+    assert okolje.posnetki == [[1000] * 10]
+    zapis = podatki["posli"][0]
+    assert zapis["ocena_s"] == round(qpu.ocena_casa(1, 10000), 2)
+    assert okolje == [qpu.omejitev_posla(a, qpu.ocena_casa(1, 10000))]
+    assert podatki["kopije_od"] == [5, 3] and len(zapis["imena_vezij"]) == 10
+    vrstice = igra.analiza_qpu(podatki)
+    assert [(v["n"], v["shots"], v["kopij"], len(v["zmage"])) for v in vrstice] == [(3, 1000, 1, 2), (5, 3000, 3, 2)]
+
+def test_zavrne_posel_ko_se_stevilo_vezij_ne_ujema(okolje, posel_s_kalibracijo):
+    opis, vezja = posel_s_kalibracijo
+    with pytest.raises(SystemExit, match="opis pa jih navaja 10"):
+        qpu.poslji(_argumenti(100), None, BACKEND, PREOSTANEK, [(opis, vezja[:-1])])
+    assert okolje == []
+
+def test_zavrne_oddajo_ko_zapis_ni_mogoc(okolje, monkeypatch, tmp_path, posel_3_5):
+    """Mapa za zapise ni zapisljiva (tu: na njenem mestu je datoteka): oddaje ni, ker ID in izidi ne bi bili shranjeni."""
+    ovira = tmp_path / "ovira"
+    ovira.write_text("x")
+    monkeypatch.setattr(qpu, "IZHOD", ovira)
+    with pytest.raises(SystemExit, match="ni mogoče pisati"):
+        qpu.poslji(_argumenti(100), None, BACKEND, PREOSTANEK, [posel_3_5])
+    assert okolje == []
+
+def test_lokalna_pot_s_kalibracijo_in_kopijami(okolje, tmp_path, posel_s_kalibracijo):
+    """--fake s --kopije-od in --kalibracija: vsako vezje ima 200 posnetkov, analiza sešteje kopije, analiza branja
+    vrne napako vsakega kubita (majhno, a ne nič, ker šumni simulator doda napako branja), shrani_analizo pa oboje
+    zapiše v <ime>_analiza.json."""
+    opis, vezja = posel_s_kalibracijo
+    podatki = qpu.poslji(_argumenti(100, fake=True, shots=200, kopije_od=[5, 3]), None, BACKEND, {}, [(opis, vezja)])
+    assert [sum(s.values()) for s in podatki["posli"][0]["stetja"]] == [200] * 10
+    assert [v["shots"] for v in igra.analiza_qpu(podatki)] == [200, 600]
+    branje = igra.analiza_branja(podatki)
+    assert branje["kubiti"] == opis["kalibracija"]["kubiti"]
+    assert len(branje["p10"]) == len(branje["p01"]) == len(branje["kubiti"])
+    assert all(0 <= p < 0.2 for p in branje["p10"] + branje["p01"])
+    assert 0 < branje["povprecje"] < 0.1 and branje["najslabsi_kubit"] in branje["kubiti"]
+    pot = qpu.shrani_analizo("t", podatki)
+    shranjeno = json.loads(pot.read_text())
+    assert pot == tmp_path / "t_analiza.json" and shranjeno["branje"]["kubiti"] == branje["kubiti"]
+    assert [(v["n"], v["shots"], v["kopij"]) for v in shranjeno["rezultati"]] == [(3, 200, 1), (5, 600, 3)]
+
+def test_analiza_branja_na_rocnih_izidih():
+    """Trije kubiti (čip 7, 9 in 4), 10 posnetkov: kubit 7 je klasični bit 0 (desni znak), kubit 4 bit 2 (levi znak).
+    V stanju 0: kubit 7 dvakrat preberemo kot 1, kubit 4 enkrat. V stanju 1: kubit 9 trikrat preberemo kot 0."""
+    kal = {"kubiti": [7, 9, 4], "zacetek": 0, "st_vezij": 2, "objavljena_napaka": [0.01, 0.02, 0.03]}
+    podatki = {"shots": 10, "posli": [{"job_id": "x", "poskusi": [], "kalibracija": kal, "imena_vezij": ["kal_0", "kal_1"],
+                                       "stetja": [{"000": 7, "001": 2, "100": 1}, {"111": 7, "101": 3}]}]}
+    branje = igra.analiza_branja(podatki)
+    assert branje["p10"] == [0.2, 0.0, 0.1] and branje["p01"] == pytest.approx([0.0, 0.3, 0.0])
+    assert branje["najslabsi_kubit"] == 9 and branje["najvecja"] == pytest.approx(0.15)
+    assert branje["objavljena_napaka"] == [0.01, 0.02, 0.03]
+    assert igra.analiza_branja({"shots": 10, "posli": [{"job_id": "x", "poskusi": [], "stetja": []}]}) is None
+    posel = podatki["posli"][0]
+    posel["stetja"][1] = {"111": 9}
+    with pytest.raises(ValueError, match="nimata 10 posnetkov"):
+        igra.analiza_branja(podatki)
+    posel["stetja"][1] = {"1111": 10}
+    with pytest.raises(ValueError, match="nima 3 bitov"):
+        igra.analiza_branja(podatki)
+    posel["stetja"][1] = {"111": 10}
+    posel["imena_vezij"] = ["kal_1", "kal_0"]
+    with pytest.raises(ValueError, match="nista na pričakovanem mestu"):
+        igra.analiza_branja(podatki)
+
+def test_analiza_qpu_sesteje_kopije_istega_vhoda():
+    """N = 3, vhoda 000 (zmaga: sodo število enic) in 110 (zmaga: liho), vsak v dveh kopijah ZAPORED. Prvi vhod:
+    kopiji {000: 10} in {000: 10}; drugi vhod: {001: 10} in {111: 10}. Pravilno združevanje da delež zmag 1,0 pri
+    obeh vhodih; združevanje s korakom (vezji 0 in 2, 1 in 3) bi dalo 0,5 in 0,5."""
+    posel = {"job_id": "x", "stetja": [{"000": 10}, {"000": 10}, {"001": 10}, {"111": 10}],
+             "imena_vezij": ["v_0_p0", "v_0_p1", "v_1_p0", "v_1_p1"],
+             "poskusi": [{"n": 3, "postavitev": [0, 1, 2], "vhodi": [[0, 0, 0], [1, 1, 0]], "zacetek": 0, "st_vezij": 4,
+                          "kopij": 2, "lastnosti_pred": {}, "lastnosti_po": {}}]}
+    podatki = {"shots": 10, "posli": [posel]}
+    [v] = igra.analiza_qpu(podatki)
+    assert v["zmage"] == [1.0, 1.0] and v["shots"] == 20 and v["kopij"] == 2
+    posel["imena_vezij"] = ["v_0_p0", "v_1_p0", "v_0_p1", "v_1_p1"]  # kopije niso zapored po vhodih
+    with pytest.raises(ValueError, match="niso zapored po vhodih"):
+        igra.analiza_qpu(podatki)
+    posel["imena_vezij"] = ["v_0_p0", "v_0_p1", "v_1_p0", "v_1_p1"]
+    posel["poskusi"][0]["st_vezij"] = 3
+    with pytest.raises(ValueError, match="slovarjev izidov"):
+        igra.analiza_qpu(podatki)
 
 def test_prevzemi_ohrani_razlog_preklica(okolje, tmp_path):
     """Posel, ki ga je varovalo preklicalo (ocena IBM nad omejitvijo): poznejši prevzemi ne prepiše razloga."""
