@@ -13,7 +13,7 @@
 \author{Dominik Krašovec in Erik Radovičevič}
 \maketitle
 
-\abstract{Zanimalo nas je, do koliko igralcev kvantna strategija v igri GHZ na procesorju IBM še premaga najboljšo klasično in koliko šum zmanjša delež zmag. V igri vsak od $N$ igralcev dobi bit in brez pogovora odgovori z bitom; s stanjem GHZ igralci brez šuma vedno zmagajo, klasično pa z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$. Igro smo izvedli na dveh simulatorjih in na procesorju ibm\_fez. Delež zmag je bil do 50 igralcev za več kot dve standardni napaki nad klasično mejo (pri treh igralcih 0,95, pri štiridesetih 0,55), pri 60 in 75 pa ne. Igra je preprost preizkus, ali prepletenost preživi šum procesorja.}
+\abstract{Zanimalo nas je, do koliko igralcev kvantna strategija v igri GHZ na procesorju IBM še premaga najboljšo klasično in koliko šum zmanjša delež zmag. V igri vsak od $N$ igralcev dobi bit in brez pogovora odgovori z bitom; s stanjem GHZ igralci brez šuma vedno zmagajo, klasično pa z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$. Igro smo izvedli na dveh simulatorjih in v dveh nalogah na procesorju ibm\_fez. V obeh nalogah je bil delež zmag do 40 igralcev za več kot dve standardni napaki nad klasično mejo (pri treh igralcih 0,95 in 0,96, pri štiridesetih 0,55 in 0,57), pri 50 in 60 le v eni, pri 75 v nobeni. Pri 5 do 40 igralcih bi več kot polovico padca povzročile že napake branja. Igra je preprost preizkus, ali prepletenost preživi šum procesorja.}
 
 
 
@@ -84,7 +84,7 @@ kubitov) v igri GHZ še premaga najboljšo klasično strategijo in koliko šum p
 
 \textbf{Pričakovani rezultat.} Na idealnem simulatorju je delež zmag 1. Pričakovali smo, da ga šum z večanjem $N$ znižuje
 proti $1/2$. Ker se z $N$ tudi klasična meja hitro približa $1/2$, naj bi procesor klasično strategijo premagal do več deset
-igralcev. Šumna simulacija, ki smo jo izvedli isti dan kot meritev in neodvisno od njenih izidov, je dala delež zmag 0,98 pri $N=3$, 0,81 pri
+igralcev. Šumna simulacija, ki smo jo izvedli isti dan kot prvo meritev in neodvisno od njenih izidov, je dala delež zmag 0,98 pri $N=3$, 0,81 pri
 $N=20$ in 0,57 pri $N=50$, torej nad klasično mejo vsaj do 50 igralcev.
 \end{svgraybox}
 
@@ -123,7 +123,8 @@ Parameter & Vrednost \\
 Python & 3.13 \\
 Qiskit, Qiskit Aer, qiskit-ibm-runtime & 2.6.1, 0.18.2, 0.51.0 \\
 kvantni procesor & ibm\_fez (IBM Heron, 156 kubitov) \\
-ID naloge (11.\,11.\,2026) & \texttt{dbq1uek4148s739vdnp0} \\
+ID prve naloge (11.\,11.\,2026) & \texttt{dbq1uek4148s739vdnp0} \\
+ID druge naloge (17.\,11.\,2026) & \texttt{dbu65hhjbrss73a7ar00} \\
 idealni simulator & Aer, metoda MPS, brez šuma \\
 šumni simulator & Aer, metoda MPS, model FakeFez (26.\,2.\,2025) \\
 primitiv (procesor) & SamplerV2 \\
@@ -217,13 +218,19 @@ sestavili svoje vezje. Simulatorja in procesor so dobili iste vhode.
       modelom obtičala (razdelek~\ref{g20:sec:neuspehi}): nadomestili smo jih z naključnimi napakami vrste X (zamenja 0 in
       1), Z (obrne predznak pri $\ket{1}$) in Y (oboje) na enem ali obeh kubitih, z enako povprečno napako vrat. Napake
       branja dodamo šele po simulaciji: vsak prebrani bit obrnemo z verjetnostjo iz posnetka. Simulirali smo $N=3$, 5, 10, 20, 30, 40 in 50.
-\item \textbf{Procesor ibm\_fez}: ena naloga za $N=3$, 5, 10, 20, 30, 40, 50, 60 in 75, z 8 vhodi in 1000 ponovitvami na
-      vezje (72 vezij; 11.\,11.\,2026; ID je v tabeli~\ref{g20:tab:orodja}). Kubite smo izbrali po objavljenih napakah
-      tistega dne. Napak branja nismo popravljali: šteje odgovor, kot ga je procesor prebral.
+\item \textbf{Procesor ibm\_fez}: dve nalogi (v nadaljevanju tudi prva in druga meritev; ID-ja sta v
+      tabeli~\ref{g20:tab:orodja}), obe za $N=3$, 5, 10, 20, 30, 40, 50, 60 in 75, z istimi vhodi in 1000 ponovitvami na
+      vezje. Prva naloga (11.\,11.\,2026) ima 72 vezij. Druga naloga (17.\,11.\,2026) ima 122 vezij. Pri $N=60$ in 75,
+      kjer je bil delež zmag v prvi nalogi od meje oddaljen manj kot dve standardni napaki, je vsako vezje v nalogi
+      štirikrat; izide štirih kopij istega vhoda seštejemo, kar je enako 4000 ponovitvam na vhod. Kubite smo izbrali znova
+      po objavljenih napakah tistega dne in brez kubita 148 (razdelek~\ref{g20:sec:neuspehi}); pri $N\le20$ so isti kot v
+      prvi nalogi, pri večjih $N$ deloma drugi. Dodani sta dve vezji za preverbo branja, ki vse izbrane kubite pripravita
+      v stanje 0 oziroma v stanje 1 in jih takoj izmerita. Napak branja nismo popravljali: šteje odgovor, kot ga je
+      procesor prebral.
 \end{enumerate}
-Naloga je porabila 21~s procesorskega časa. Pred oddajo smo ga po navodilih IBM~\cite{g20:ibmjobtime} ocenili na
-22~s. Nalogi smo nastavili največje trajanje 37~s, skupno porabo pa omejili na 40~s. ID in porabo naloge hrani
-\path{rezultati/naloge.jsonl}.
+Prva naloga je porabila 21~s procesorskega časa. Pred oddajo smo ga po navodilih IBM~\cite{g20:ibmjobtime} ocenili na
+22~s. Nalogi smo nastavili največje trajanje 37~s, skupno porabo pa omejili na 40~s. Druga naloga je porabila 34~s
+(ocena 37~s, največje trajanje 58~s, meja porabe 60~s). ID-ja in porabo obeh nalog hrani \path{rezultati/naloge.jsonl}.
 
 \subsection{Metrike}
 \label{g20:sec:metrike}
@@ -233,13 +240,21 @@ Naloga je porabila 21~s procesorskega časa. Pred oddajo smo ga po navodilih IBM
 \item \textbf{Negotovost $\sigma$}: standardna napaka tega povprečja, torej ocena, za koliko bi se povprečje spremenilo, če
       bi poskus ponovili. Izračunamo jo na dva načina in vzamemo večjo vrednost: iz razlik med 8 vhodi ($s/\sqrt{8}$, kjer
       je $s$ standardni odklon 8 deležev) in iz končnega števila ponovitev, kot pri metu kovanca (binomska napaka
-      $\sqrt{p(1-p)/n}$ pri deležu zmag $p$ in skupno $n$ ponovitvah; na procesorju je $n=8000$).
+      $\sqrt{p(1-p)/n}$ pri deležu zmag $p$ in skupno $n$ ponovitvah; na procesorju je $n=8000$, v drugi nalogi pri
+      $N=60$ in 75 pa $32\,000$).
 \item \textbf{Kriterij}: procesor klasično strategijo premaga, če je delež zmag, zmanjšan za $2\sigma$, še vedno nad
       $p_\text{klas}$~\eqref{g20:eq:meja}; tako velik presežek bi le po naključju dobili redko. Klasična meja velja za
       povprečje po vseh veljavnih vhodih. Naših 8 vhodov je izbranih naključno in enakomerno med veljavnimi (pri $N=3$ so
       to vsi štirje, vsak dvakrat), zato je povprečje po njih ocena povprečja po vseh. Na procesorju se delež zmag med
       vhodi nekoliko razlikuje; te razlike so zajete v $\sigma$.
 \item \textbf{Vpliv šuma}: razlika deleža zmag med idealnim simulatorjem, šumnim simulatorjem in procesorjem pri istem $N$.
+\item \textbf{Napaka branja kubita} $\varepsilon$ (iz vezij za preverbo branja): povprečje deleža ponovitev, v katerih smo
+      kubit v stanju 0 prebrali kot 1, in deleža, v katerih smo kubit v stanju 1 prebrali kot 0. Povprečje vzamemo, ker je
+      v igri vsak odgovor približno enako pogosto 0 kot 1.
+\item \textbf{Ocena vpliva branja}: delež zmag, ki bi ga dobili, če bi bile napake branja edina napaka. Igralci izgubijo,
+      če se obrne liho število prebranih bitov. Pri enem bitu je razlika med verjetnostjo, da se ne obrne, in verjetnostjo,
+      da se obrne, $1-2\varepsilon$; pri neodvisnih bitih se te razlike množijo, zato je verjetnost sodega števila obratov
+      $\tfrac12+\tfrac12\prod_i(1-2\varepsilon_i)$. Napak vrat in čakanja ta ocena ne zajame.
 \item \textbf{Lastnosti vezja} pred prevajanjem in po njem: število kubitov, globina (število zaporednih plasti vrat),
       število dvokubitnih vrat in trajanje.
 \end{itemize}
@@ -249,12 +264,12 @@ Naloga je porabila 21~s procesorskega časa. Pred oddajo smo ga po navodilih IBM
 \label{g20:sec:rezultati}
 
 Tabela~\ref{g20:tab:igra} in slika~\ref{g20:fig:igra-rez} primerjata delež zmag na idealnem simulatorju, šumnem simulatorju
-in procesorju s klasično mejo~\eqref{g20:eq:meja}.
+in procesorju s klasično mejo~\eqref{g20:eq:meja}, tabela~\ref{g20:tab:igra2} pa obe nalogi na procesorju.
 
 \begin{table}[htbp]
 \caption{Igra GHZ: klasična meja~\eqref{g20:eq:meja} in delež zmag na idealnem simulatorju, šumnem simulatorju
-($8\times250$ ponovitev) in procesorju ibm\_fez ($8\times1000$ ponovitev); v oklepaju je $\sigma$, na primer 0,949(3) pomeni
-$0{,}949\pm0{,}003$. Desno so lastnosti vezja na ibm\_fez, in sicer tistega od 8 vezij, ki je pred prevajanjem najgloblje:
+($8\times250$ ponovitev) in procesorju ibm\_fez (prva naloga, $8\times1000$ ponovitev); v oklepaju je $\sigma$, na primer 0,949(3) pomeni
+$0{,}949\pm0{,}003$. Desno so lastnosti vezja prve naloge na ibm\_fez, in sicer tistega od 8 vezij, ki je pred prevajanjem najgloblje:
 globina pred prevajanjem in po njem, število dvokubitnih vrat (2q, pred prevajanjem in po njem enako) in trajanje po
 prevajanju z meritvijo. Število kubitov je $N$. Šumne simulacije za $N=60$ in 75 nimamo (razdelek~\ref{g20:sec:neuspehi}).}
 \label{g20:tab:igra}
@@ -279,25 +294,68 @@ $N$ & meja & idealno & šumno & ibm\_fez & izpolnjen & pred & po & 2q & [$\mu$s]
 \end{tabular}
 \end{table}
 
+\begin{table}[htbp]
+\caption{Obe nalogi na procesorju ibm\_fez: delež zmag v prvi (11.\,11.) in drugi nalogi (17.\,11.\,2026) in ali
+je kriterij izpolnjen. Predzadnji stolpec je število ponovitev na vhod v drugi nalogi, zadnji pa ocena deleža zmag, če bi
+bile izmerjene napake branja kubitov druge naloge edina napaka (razdelek~\ref{g20:sec:metrike}).}
+\label{g20:tab:igra2}
+\centering
+\small
+\begin{tabular}{rrcrcrr}
+\toprule
+& \multicolumn{2}{c}{prva naloga} & \multicolumn{2}{c}{druga naloga} & ponovitev & samo napake \\
+$N$ & delež zmag & kriterij & delež zmag & kriterij & na vhod & branja \\
+\midrule
+3 & 0,949(3) & da & 0,962(2) & da & 1000 & 0,983 \\
+5 & 0,931(5) & da & 0,929(3) & da & 1000 & 0,949 \\
+10 & 0,850(7) & da & 0,883(4) & da & 1000 & 0,912 \\
+20 & 0,715(5) & da & 0,673(5) & da & 1000 & 0,749 \\
+30 & 0,641(8) & da & 0,624(7) & da & 1000 & 0,685 \\
+40 & 0,548(6) & da & 0,568(6) & da & 1000 & 0,648 \\
+50 & 0,517(6) & da & 0,508(11) & ne & 1000 & 0,573 \\
+60 & 0,508(6) & ne & 0,514(5) & da & 4000 & 0,538 \\
+75 & 0,502(6) & ne & 0,498(3) & ne & 4000 & 0,518 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]{ghz_igra}
-\caption{Delež zmag v igri GHZ v odvisnosti od števila igralcev $N$. Procesor ibm\_fez je nad klasično
-mejo do $N=50$. Navpične črtice kažejo $\pm2\sigma$.}
+\caption{Delež zmag v igri GHZ v odvisnosti od števila igralcev $N$. Procesor ibm\_fez je v obeh meritvah nad klasično
+mejo do $N=40$. Navpične črtice kažejo $\pm2\sigma$.}
 \label{g20:fig:igra-rez}
 \end{figure}
 
-\textbf{Kvantna proti klasični strategiji.} Na idealnem simulatorju igralci vedno zmagajo. Na procesorju
+\textbf{Kvantna proti klasični strategiji.} Na idealnem simulatorju igralci vedno zmagajo. V prvi nalogi na procesorju
 ibm\_fez delež zmag z $N$ pada z 0,949 pri treh igralcih na 0,517 pri 50 igralcih in je do tam nad klasično mejo. Pri
 $N=50$ je razlika do meje 0,017, kar je približno tri standardne napake. Pri $N=60$ in 75 je delež zmag (0,508 in 0,502)
 od meje oddaljen manj kot dve standardni napaki, zato zmage nad klasično strategijo tam ne moremo potrditi. Z 8000
 ponovitvami na $N$ bi zaznali le presežek, večji od približno 0,011.
 
-\textbf{Vpliv šuma.} Šum je delež zmag na procesorju znižal z 1 na idealnem simulatorju na 0,949 že pri treh igralcih in
+\textbf{Druga meritev.} Druga naloga (tabela~\ref{g20:tab:igra2}) da podoben potek. Kriterij je izpolnjen do 40
+igralcev in pri 60 igralcih, kjer je delež zmag s štirikrat več ponovitvami (0,514) tri standardne napake nad mejo. Pri 50
+igralcih (0,508) kriterij ni izpolnjen: delež zmag je nad mejo le za 0,008, kar je manj kot dve standardni napaki tudi z
+napako prve naloge (0,006). Standardna napaka je bila tu še večja ($\sigma=0{,}011$), ker so se deleži zmag posameznih
+vhodov bolj razlikovali. Pri 75 igralcih (0,498) presežka ni. V obeh meritvah je torej kvantna strategija najboljšo
+klasično premagala do 40 igralcev, pri 50 in 60 igralcih v eni od dveh, pri 75 v nobeni.
+
+Deleža zmag obeh nalog se pri istem $N$ razlikujeta za do 0,04. Pri $N=3$, 10 in 20, kjer sta nalogi uporabili iste kubite
+in iste vhode, je razlika (0,01 do 0,04) približno štiri- do šestkrat večja od njene negotovosti, zato sklepamo, da se je
+procesor med dnevoma spremenil. Pri $N=50$ in 60 sta razliki med nalogama manjši od negotovosti.
+
+\textbf{Vpliv šuma.} Šum je delež zmag v prvi nalogi znižal z 1 na idealnem simulatorju na 0,949 že pri treh igralcih in
 na 0,715 pri dvajsetih. Šumni simulator je padec pokazal, vendar je bil pri vseh simuliranih $N$ (3 do 50) bolj optimističen od
-procesorja (za 0,02 do 0,11). Primerjava je le groba, ker simulator uporablja
-posnetek napak s 26.\,2.\,2025 in deloma druge kubite kot procesor (pri $N\le10$ nobenega istega, pri $N=50$
+procesorja: od prve naloge za 0,02 do 0,11, od druge za 0,02 do 0,14. Primerjava je le groba, ker simulator uporablja
+posnetek napak s 26.\,2.\,2025 in deloma druge kubite kot procesor (v prvi nalogi pri $N\le10$ nobenega istega, pri $N=50$
 je istih 26 od 50).
+
+\textbf{Napake branja.} Vezji za preverbo branja v drugi nalogi sta na 82 uporabljenih kubitih dali povprečno napako
+branja 0,020 (objavljena: 0,019). Deset kubitov je imelo napako nad 0,05, najslabši (kubit 83) 0,12. Po oceni iz
+razdelka~\ref{g20:sec:metrike} bi že te napake same znižale delež zmag na 0,912 pri desetih, 0,749 pri dvajsetih in 0,648
+pri 40 igralcih (izmerjeno 0,883, 0,673 in 0,568). Pri 5 do 40 igralcih bi torej že same napake branja povzročile več kot
+polovico padca deleža zmag pod 1; preostanek pripisujemo predvsem vratom in čakanju. Pri treh igralcih bi povzročile manj
+kot polovico. Pri 50 ali več igralcih je izmerjeni delež zmag preblizu $1/2$, da bi padec lahko razdelili po vzrokih.
 
 \textbf{Lastnosti vezij.} Vezje ima po prevajanju enako število dvokubitnih vrat kot pred njim ($N-1$), ker ga gradimo po
 povezavah čipa. Globina se poveča dva- do trikrat, ker prevajalnik vrata CNOT in H zapiše z osnovnimi vrati, ki jih procesor
@@ -306,8 +364,8 @@ manj kot 3~$\mu$s.
 
 \textbf{Primerjava z objavami.} Objavljeni preizkusi Merminovih neenakosti na procesorjih IBM, ki smo jih našli, segajo do 7
 kubitov; prepletenost je bila tam dobra do 4 kubitov, pri daljših verigah pa le pri nekaterih povezavah
-kubitov~\cite{g20:huang2020}. Na novejšem procesorju ibm\_fez je kvantna strategija v naši meritvi presegla klasično
-mejo do 50 igralcev. Na Googlovem procesorju Willow so isto igro izvedli z do 71 igralci~\cite{g20:kumar2025}. Primerjavi sta le
+kubitov~\cite{g20:huang2020}. Na novejšem procesorju ibm\_fez je kvantna strategija v obeh naših meritvah presegla klasično
+mejo do 40 igralcev. Na Googlovem procesorju Willow so isto igro izvedli z do 71 igralci~\cite{g20:kumar2025}. Primerjavi sta le
 okvirni, ker se razlikujejo procesorji, izbira kubitov in število
 ponovitev, starejši objavi pa merita Merminovo neenakost in ne deleža zmag.
 
@@ -316,16 +374,19 @@ ponovitev, starejši objavi pa merita Merminovo neenakost in ne deleža zmag.
 \label{g20:sec:razprava}
 
 \textbf{Odgovor na raziskovalno vprašanje.} Na procesorju ibm\_fez je kvantna strategija najboljšo klasično premagala do
-50 igralcev. Pri 60 in 75 igralcih je bil delež zmag (0,508 in 0,502) od meje oddaljen manj kot dve standardni napaki, zato
-zmage nad klasično strategijo tam ne moremo potrditi. Meja je torej med 50 in 60 igralci.
-Šum je delež zmag znižal z 1 na 0,95 pri treh in na 0,55 pri 40 igralcih. Rezultat velja za eno nalogo,
-izbrane kubite in 8 vhodov na $N$; med $N=50$ in 60 nismo merili.
+40 igralcev v obeh meritvah. Pri 50 igralcih je bil kriterij izpolnjen le v prvi meritvi, pri 60 igralcih le v drugi,
+pri 75 igralcih v nobeni. Meja je torej med 40 in 60 igralci. Pri 50 in 60 igralcih je bil delež zmag v obeh meritvah le
+malo nad $1/2$ (0,508 do 0,517), razliki med meritvama pa sta manjši od negotovosti, zato je različen izid kriterija pri
+teh $N$ lahko naključen.
+Šum je delež zmag znižal z 1 na 0,95 do 0,96 pri treh in na 0,55 do 0,57 pri 40 igralcih. Rezultat velja za dve nalogi,
+izbrane kubite in 8 vhodov na $N$; med $N=40$ in 50 ter med 50 in 60 nismo merili.
 
 \textbf{Zakaj šum zniža delež zmag.} Vsaka napaka, ki obrne izid enega kubita, obrne tudi pariteto odgovorov in s tem izid
 igre. Izid kubita obrne napaka branja, pa tudi napaka faze na kateremkoli kubitu pred zadnjimi vrati H (na primer med
 čakanjem). Poenostavljeno: če ima vsak od $N$ kubitov svojo, od drugih neodvisno možnost napake, je pri velikem $N$ skoraj
 enako verjetno, da je obratov sodo ali liho, zato se delež zmag približa $1/2$. Ker se z $N$ tudi klasična meja približa $1/2$, za zmago nad njo zadošča že majhen
-ostanek prepletenosti.
+ostanek prepletenosti. Meritev napak branja v drugi nalogi se s to sliko ujema: pri 5 do 40 igralcih bi že same
+napake branja povzročile več kot polovico padca (tabela~\ref{g20:tab:igra2}).
 
 \textbf{Kaj zmaga pokaže in česa ne.} Zmaga nad klasično mejo pokaže, da so bili kubiti med igro prepleteni; ne pokaže pa,
 da je bilo prepletenih vseh $N$ kubitov hkrati. Pri tem velja pomembna predpostavka. Vsi igralci so kubiti istega čipa in
@@ -335,19 +396,22 @@ računalnik ne zmore. Pomeni, da se kubiti procesorja kljub šumu obnašajo kot 
 vsakega kubita odvisen le od njegovega bita in skupnega stanja.
 
 \textbf{Ali se je pričakovanje potrdilo?} Delno. Delež zmag z $N$ pada proti $1/2$, kot smo pričakovali. Šumna simulacija
-je kazala zmago nad klasično mejo do 50 igralcev (dlje ne sega), procesor pa jo je dosegel do 50 igralcev.
-Simulator je bil pri vseh $N$ preveč optimističen. Vzroka za razliko nismo mogli določiti. Možni so trije: simulator uporablja
+je kazala zmago nad klasično mejo do 50 igralcev (dlje ne sega), procesor pa jo je v obeh meritvah dosegel do 40 igralcev,
+pri 50 le v eni. Simulator je bil pri vseh $N$ preveč optimističen. Vzroka za razliko nismo mogli določiti. Možni so trije: simulator uporablja
 starejši posnetek napak; uporablja deloma druge kubite; njegov šumni model zajame le napake vrat, izgubo stanja med čakanjem
 in napake branja, ne pa na primer vpliva sosednjih kubitov drug na drugega in sprememb kubitov med dnevi.
 
 \textbf{Kaj rezultat pomeni za programiranje kvantnih računalnikov.} V našem poskusu sta šumni simulator in objavljeni podatki o
 napakah pokazala pravo smer, ne pa pravih številk. Zato predlagamo, da se program, ki na simulatorju deluje, preveri še na
-procesorju, napake izbranih kubitov pa izmeri sproti.
+procesorju, napake izbranih kubitov pa izmeri sproti. Tudi ena meritev ni dovolj: deleža zmag dveh nalog sta se pri nekaterih
+$N$ razlikovala bolj, kot kaže statistična negotovost ene naloge.
 
-\textbf{Omejitve.} Meritev na procesorju je le ena, na en dan. Vsak $N$ uporablja svoj nabor kubitov, večji nabori pa vsebujejo tudi slabše kubite: povprečna objavljena napaka
-branja izbranih kubitov naraste z 0,004 pri $N=3$ na 0,023 pri $N=75$. Padec deleža zmag z $N$ zato ni
-posledica le števila igralcev. Za vsak $N$ smo uporabili le 8 od mnogih možnih vhodov. Naloga ni imela vezij za
-preverbo branja. Šumno simulacijo imamo le do $N=50$.
+\textbf{Omejitve.} Meritvi na procesorju sta le dve, na dva dneva; med njima se je delež zmag pri istem $N$ spremenil za
+do 0,04. Vsak $N$ uporablja svoj nabor kubitov, večji nabori pa vsebujejo tudi slabše kubite: povprečna objavljena napaka
+branja izbranih kubitov v prvi nalogi naraste z 0,004 pri $N=3$ na 0,023 pri $N=75$. Padec deleža zmag z $N$ zato ni
+posledica le števila igralcev. Za vsak $N$ smo uporabili le 8 od mnogih možnih vhodov. Prva naloga ni imela vezij za
+preverbo branja. Ocena vpliva branja privzame, da so napake branja med kubiti neodvisne. Šumno simulacijo imamo le do
+$N=50$.
 
 \subsection{Kaj ni delovalo}
 \label{g20:sec:neuspehi}
@@ -361,11 +425,14 @@ starejšega 27-kubitnega procesorja IBM) se simulacija ni končala in ni izpisal
 zapis napak dvokubitnih vrat in dodajanje napak branja po simulaciji; oboje smo nato uporabili tudi za model FakeFez
 (razdelek~\ref{g20:sec:poskusi}).
 
-\textbf{Izbira kubitov iz objavljenih napak.} Kubite smo izbrali po objavljenih napakah. Podatki kažejo, da to
+\textbf{Izbira kubitov iz objavljenih napak.} Kubite smo izbrali po objavljenih napakah. Podatki prve naloge kažejo, da to
 ni dovolj. V idealnem primeru so po vratih H vsi nizi odgovorov s pravo pariteto enako verjetni
 (razdelek~\ref{g20:sec:igra}), zato bi moral vsak kubit dati izid 1 v polovici ponovitev. To velja za vse kubite (delež
-enic med 0,46 in 0,51) razen za kubit 148 pri $N=75$, ki je dal izid 1 le v 33~\% ponovitev. V ponovitvi bi kubit
-148 izločili in napake branja izmerili. Za naslednjič
+enic med 0,46 in 0,51) razen za kubit 148 pri $N=75$, ki je dal izid 1 le v 33~\% ponovitev. V drugi nalogi smo zato kubit
+148 izločili in napake branja izmerili. Objavljene napake branja so bile v povprečju točne, pri posameznih kubitih pa ne:
+kubit 126 je imel objavljeno napako 0,040, izmerjeno pa 0,087, ker je stanje 1 v 15~\% ponovitev prebral kot 0. V drugi
+nalogi je izbira uporabila tudi dva kubita z objavljeno napako branja nad 0,1: kubit 113 pri 50, 60 in 75 igralcih, kubit
+83 le pri 75. Za naslednjič
 predlagamo, da napake branja izmerimo vnaprej, kubite izberemo po izmerjenih vrednostih in najslabše izločimo.
 
 
@@ -373,12 +440,13 @@ predlagamo, da napake branja izmerimo vnaprej, kubite izberemo po izmerjenih vre
 \section{Zaključek}
 \label{g20:sec:zakljucek}
 
-Na procesorju ibm\_fez smo z eno nalogo (72 vezij, 21~s procesorskega časa) odigrali igro GHZ s 3 do 75
-igralci. Kvantna strategija je najboljšo klasično premagala do 50 igralcev, pri 60 in 75 pa ne. Delež zmag z $N$
-pada proti $1/2$. Šumni
-simulator je potek pokazal pravilno, a je bil pri vseh simuliranih $N$ preveč optimističen. Rezultat velja za eno nalogo
+Na procesorju ibm\_fez smo z dvema nalogama (72 in 122 vezij, 21 in 34~s procesorskega časa) odigrali igro GHZ s 3 do 75
+igralci. Kvantna strategija je najboljšo klasično premagala do 40 igralcev v obeh meritvah, pri 50 in 60 igralcih v eni od
+dveh, pri 75 v nobeni. Delež zmag z $N$ pada proti $1/2$; pri 5 do 40 igralcih bi več kot polovico padca povzročile že
+izmerjene napake branja. Šumni
+simulator je potek pokazal pravilno, a je bil pri vseh simuliranih $N$ preveč optimističen. Rezultat velja za dve nalogi
 in izbrane kubite. Za nadaljnje delo predlagamo izbiro kubitov po izmerjenih napakah branja, pri $N=50$ in 60 več vezij
-ter meritve med 50 in 60 igralci.
+(več vhodov in več kopij vsakega vezja) ter meritve med 40 in 60 igralci.
 
 
 \section*{Doprinosi avtorjev}
