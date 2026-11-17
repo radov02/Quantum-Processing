@@ -22,6 +22,7 @@ import qpu  # noqa: E402
 BACKEND = FakeFez()
 PREOSTANEK = {"usage_remaining_seconds": 598}
 
+
 class _Pub:
     def __init__(self, n, shots):
         self.n, self.shots = n, shots
@@ -33,6 +34,7 @@ class _Pub:
             def get_counts(self_inner):
                 return {"0" * n: shots // 2, "1" * n: shots - shots // 2}
         return _D()
+
 
 class _Job:
     def __init__(self, vezja, napaka=None, shots=1000):
@@ -56,6 +58,7 @@ class _Job:
 
     def cancel(self):
         self.preklici += 1
+
 
 @pytest.fixture
 def okolje(monkeypatch, tmp_path):
@@ -87,6 +90,7 @@ def okolje(monkeypatch, tmp_path):
     monkeypatch.setattr(qpu, "beri_dnevnik", lambda: [])
     return omejitve
 
+
 @pytest.fixture
 def dnevnik(okolje, monkeypatch, tmp_path):
     """Pravi dnevnik iz ibm_skupno (brez nadomestkov iz `okolje`) v začasni mapi; vrne pot do naloge.jsonl."""
@@ -96,15 +100,18 @@ def dnevnik(okolje, monkeypatch, tmp_path):
         monkeypatch.setattr(qpu, ime, getattr(ibm_skupno, ime))
     return tmp_path / "naloge.jsonl"
 
+
 def _argumenti(meja, **k):
     nastavitve = {"max_sekund": meja, "fake": False, "ime": "t", "shots": 1000, "kopije_od": None, "k": 2, "seme": 5,
                   "max_poslov": None, "faktor_omejitve": 2.0, "brez_kubitov": []}
     nastavitve.update(k)
     return Namespace(**nastavitve)
 
+
 @pytest.fixture(scope="module")
 def posel_3_5():
     return qpu.zgradi_posel_igre(BACKEND, [3, 5], 2, 5)
+
 
 def test_posel_igre(posel_3_5):
     """N = 3 in 5, 2 vhoda: zaporedni odmiki, 4 vezja brez kalibracijskih, vhodi iz generatorja s semenom 5 + N,
@@ -123,6 +130,7 @@ def test_posel_igre(posel_3_5):
             assert qpu.st_dvokubitnih(qc) == n - 1
             assert qpu.merjeni_kubiti(qc) == dict(enumerate(p["postavitev"]))
 
+
 def _trije_kubiti_v_vrsti():
     """Trije zaporedno povezani kubiti čipa a - b - c in kubit, ki ni sosed kubita b."""
     sosedi = {}
@@ -134,12 +142,14 @@ def _trije_kubiti_v_vrsti():
     dalec = next(q for q in sorted(sosedi) if q not in sosedi[b] | {a, b, c})
     return [a, b, c], dalec
 
+
 def test_posel_zavrne_vezje_z_dodanimi_vrati(monkeypatch):
     """Drevo s povezavo, ki je na čipu ni: prevajalnik doda SWAP, gradnja posla se ustavi pred oddajo."""
     (a, b, _), dalec = _trije_kubiti_v_vrsti()
     monkeypatch.setattr(ghz, "najdi_drevo", lambda backend, n: ([a, b, dalec], [None, 0, 1]))
     with pytest.raises(RuntimeError, match="dodal vrata"):
         qpu.zgradi_posel_igre(BACKEND, [3], 1, 5)
+
 
 def test_posel_zavrne_meritve_na_drugih_kubitih(monkeypatch):
     """Prevajanje na obrnjen vrstni red kubitov ohrani 2 dvokubitni vrati, meri pa druge kubite, kot jih je izbrala izbira."""
@@ -150,12 +160,14 @@ def test_posel_zavrne_meritve_na_drugih_kubitih(monkeypatch):
     with pytest.raises(RuntimeError, match="meritve niso"):
         qpu.zgradi_posel_igre(BACKEND, [3], 1, 5)
 
+
 def test_neobracunan_prejsnji_posel_ustavi_oddajo(okolje, monkeypatch, posel_3_5):
     monkeypatch.setattr(qpu, "beri_dnevnik", lambda: [{"job_id": "stari", "ime_poskusa": "prejsnji", "fake": False,
                                                        "porabljen_cas_s": None}])
     with pytest.raises(SystemExit, match="brez obračuna"):
         qpu.poslji(_argumenti(100), None, BACKEND, PREOSTANEK, [posel_3_5])
     assert okolje == []
+
 
 def test_dnevnik_od_oddaje_do_obracuna(okolje, dnevnik, posel_3_5):
     """Brez nadomestkov dnevnika: oddaja zapiše posel brez obračuna, zato se naslednja oddaja ustavi; po obračunu
@@ -173,6 +185,7 @@ def test_dnevnik_od_oddaje_do_obracuna(okolje, dnevnik, posel_3_5):
     assert ibm_skupno.beri_dnevnik()[0]["porabljen_cas_s"] == 21.0
     qpu.poslji(_argumenti(100, ime="b"), None, BACKEND, PREOSTANEK, [posel_3_5])
     assert len(okolje) == 2
+
 
 def test_prevzemi_dopolni_zapis_in_ne_prepise_popolnega(okolje, dnevnik, monkeypatch, tmp_path, posel_3_5):
     """Prekinjeno čakanje (ni izidov ne obračuna): prevzemi ju zapiše v datoteko in dnevnik; drugič je zapis popoln,
@@ -198,10 +211,21 @@ def test_prevzemi_dopolni_zapis_in_ne_prepise_popolnega(okolje, dnevnik, monkeyp
     qpu.prevzemi(Namespace(ime="a"), _Storitev())
     assert klici == [job_id]
 
+
+def test_shranjeni_dnevnik_ima_obe_obracunani_nalogi_igre():
+    """rezultati/naloge.jsonl: obe nalogi igre, obe obračunani (sicer bi varovalo ustavilo vsako novo oddajo):
+    igra 21 s (11. 11.) in igra2 34 s (17. 11.)."""
+    zapisi = ibm_skupno.beri_dnevnik()
+    assert len(zapisi) == 2
+    assert all(z["porabljen_cas_s"] is not None for z in zapisi)
+    assert {z["ime_poskusa"]: z["porabljen_cas_s"] for z in zapisi} == {"igra": 21, "igra2": 34}
+
+
 def test_omejitev_ni_nikoli_pod_oceno():
     with pytest.raises(SystemExit, match="manjša od ocene"):
         qpu.omejitev_posla(Namespace(faktor_omejitve=0.1), 20.0)
     assert qpu.omejitev_posla(Namespace(faktor_omejitve=1.0), 20.0) >= 20
+
 
 def test_vsota_omejitev_ne_preseze_meje_ko_obracun_caka(okolje, posel_3_5):
     """Vsak posel oceni 3,4 s in rezervira 10 s; z mejo 15 s gre le prvi, ker obračun ostane neznan, čeprav bi
@@ -214,10 +238,12 @@ def test_vsota_omejitev_ne_preseze_meje_ko_obracun_caka(okolje, posel_3_5):
     assert podatki["rezervirano_s"] <= 15
     assert okolje.posnetki == [[1000] * 4]  # vsa vezja z enakim številom posnetkov
 
+
 @pytest.fixture(scope="module")
 def posel_s_kalibracijo():
     """N = 3 in 5, 2 vhoda, vezja z N >= 5 trikrat, na koncu kalibracijski vezji: 2 + 6 + 2 = 10 vezij."""
     return qpu.zgradi_posel_igre(BACKEND, [3, 5], 2, 5, kalibracija=True, kopije_od=(5, 3))
+
 
 def test_kopije_vezij_so_zapored_in_enake(posel_s_kalibracijo, posel_3_5):
     """--kopije-od 5 3: pri N = 5 je vsako od 2 vezij v poslu trikrat zapored (kopije istega vhoda skupaj), pri
@@ -237,6 +263,7 @@ def test_kopije_vezij_so_zapored_in_enake(posel_s_kalibracijo, posel_3_5):
             assert kopija.count_ops() == izvirnik.count_ops()
             assert qpu.merjeni_kubiti(kopija) == qpu.merjeni_kubiti(izvirnik) == dict(enumerate(p5["postavitev"]))
 
+
 def test_kalibracijski_vezji_merita_vse_izbrane_kubite(posel_s_kalibracijo):
     """Z --kalibracija sta na koncu posla dve vezji brez dvokubitnih vrat, ki merita unijo izbranih kubitov; prvo
     nima vrat X, drugo ima X na vsakem kubitu. Zapisana je objavljena napaka branja vsakega kubita."""
@@ -252,6 +279,7 @@ def test_kalibracijski_vezji_merita_vse_izbrane_kubite(posel_s_kalibracijo):
     assert nic.count_ops().get("x", 0) == 0 and ena.count_ops().get("x", 0) == len(kal["kubiti"])
     assert len(kal["objavljena_napaka"]) == len(kal["kubiti"]) and all(0 < e < 0.5 for e in kal["objavljena_napaka"])
 
+
 def test_kalibracijsko_vezje_brez_vrat_x_se_zavrne(monkeypatch):
     """Če bi prevajanje izgubilo vrata X (ali jih dodalo vezju kal_0), se gradnja posla ustavi pred oddajo."""
     pravi = ghz.prevedi
@@ -265,6 +293,7 @@ def test_kalibracijsko_vezje_brez_vrat_x_se_zavrne(monkeypatch):
     monkeypatch.setattr(ghz, "prevedi", brez_x)
     with pytest.raises(RuntimeError, match="vrata niso na pričakovanih kubitih"):
         qpu.kalibracijski_vezji(BACKEND, [0, 1, 2])
+
 
 def test_posel_s_kopijami_ocena_in_oddaja(okolje, posel_s_kalibracijo):
     """Vseh 10 vezij gre v en posel z enakim številom posnetkov; ocena in omejitev sledita številu vezij. Analiza
@@ -281,11 +310,13 @@ def test_posel_s_kopijami_ocena_in_oddaja(okolje, posel_s_kalibracijo):
     vrstice = igra.analiza_qpu(podatki)
     assert [(v["n"], v["shots"], v["kopij"], len(v["zmage"])) for v in vrstice] == [(3, 1000, 1, 2), (5, 3000, 3, 2)]
 
+
 def test_zavrne_posel_ko_se_stevilo_vezij_ne_ujema(okolje, posel_s_kalibracijo):
     opis, vezja = posel_s_kalibracijo
     with pytest.raises(SystemExit, match="opis pa jih navaja 10"):
         qpu.poslji(_argumenti(100), None, BACKEND, PREOSTANEK, [(opis, vezja[:-1])])
     assert okolje == []
+
 
 def test_zavrne_oddajo_ko_zapis_ni_mogoc(okolje, monkeypatch, tmp_path, posel_3_5):
     """Mapa za zapise ni zapisljiva (tu: na njenem mestu je datoteka): oddaje ni, ker ID in izidi ne bi bili shranjeni."""
@@ -295,6 +326,7 @@ def test_zavrne_oddajo_ko_zapis_ni_mogoc(okolje, monkeypatch, tmp_path, posel_3_
     with pytest.raises(SystemExit, match="ni mogoče pisati"):
         qpu.poslji(_argumenti(100), None, BACKEND, PREOSTANEK, [posel_3_5])
     assert okolje == []
+
 
 def test_lokalna_pot_s_kalibracijo_in_kopijami(okolje, tmp_path, posel_s_kalibracijo):
     """--fake s --kopije-od in --kalibracija: vsako vezje ima 200 posnetkov, analiza sešteje kopije, analiza branja
@@ -313,6 +345,7 @@ def test_lokalna_pot_s_kalibracijo_in_kopijami(okolje, tmp_path, posel_s_kalibra
     shranjeno = json.loads(pot.read_text())
     assert pot == tmp_path / "t_analiza.json" and shranjeno["branje"]["kubiti"] == branje["kubiti"]
     assert [(v["n"], v["shots"], v["kopij"]) for v in shranjeno["rezultati"]] == [(3, 200, 1), (5, 600, 3)]
+
 
 def test_analiza_branja_na_rocnih_izidih():
     """Trije kubiti (čip 7, 9 in 4), 10 posnetkov: kubit 7 je klasični bit 0 (desni znak), kubit 4 bit 2 (levi znak).
@@ -337,6 +370,7 @@ def test_analiza_branja_na_rocnih_izidih():
     with pytest.raises(ValueError, match="nista na pričakovanem mestu"):
         igra.analiza_branja(podatki)
 
+
 def test_analiza_qpu_sesteje_kopije_istega_vhoda():
     """N = 3, vhoda 000 (zmaga: sodo število enic) in 110 (zmaga: liho), vsak v dveh kopijah ZAPORED. Prvi vhod:
     kopiji {000: 10} in {000: 10}; drugi vhod: {001: 10} in {111: 10}. Pravilno združevanje da delež zmag 1,0 pri
@@ -356,6 +390,7 @@ def test_analiza_qpu_sesteje_kopije_istega_vhoda():
     with pytest.raises(ValueError, match="slovarjev izidov"):
         igra.analiza_qpu(podatki)
 
+
 def test_prevzemi_ohrani_razlog_preklica(okolje, tmp_path):
     """Posel, ki ga je varovalo preklicalo (ocena IBM nad omejitvijo): poznejši prevzemi ne prepiše razloga."""
     zapis = {"ime": "t", "backend": "x", "shots": 10, "posli": [{"job_id": "j1", "stetja": None, "poraba_s": None,
@@ -370,6 +405,7 @@ def test_prevzemi_ohrani_razlog_preklica(okolje, tmp_path):
     podatki = qpu.prevzemi(Namespace(ime="t"), _Storitev())
     assert podatki["posli"][0]["stanje"] == "CANCELLED (ocena IBM nad omejitvijo)"
 
+
 def test_ocena_ibm_nad_omejitvijo_preklice_posel(okolje, monkeypatch, tmp_path, posel_3_5):
     monkeypatch.setattr(qpu, "ocena_ibm", lambda *a, **k: okolje[-1] + 1)
     with pytest.raises(SystemExit, match="posel preklican"):
@@ -377,6 +413,7 @@ def test_ocena_ibm_nad_omejitvijo_preklice_posel(okolje, monkeypatch, tmp_path, 
     assert len(okolje) == 1 and okolje.posli[0].preklici == 1  # drugi posel ni bil poslan
     zapis = json.loads((tmp_path / "t.json").read_text())["posli"]
     assert len(zapis) == 1 and zapis[0]["stanje"] == "CANCELLED (ocena IBM nad omejitvijo)"
+
 
 def test_neuspel_posel_ustavi_oddajo(okolje, tmp_path, posel_3_5):
     okolje.napaka = RuntimeError("napaka na procesorju")
@@ -386,6 +423,7 @@ def test_neuspel_posel_ustavi_oddajo(okolje, tmp_path, posel_3_5):
     zapis = json.loads((tmp_path / "t.json").read_text())["posli"]
     assert len(zapis) == 1 and zapis[0]["stanje"].startswith("NAPAKA") and zapis[0]["stetja"] is None
 
+
 def test_zavrne_brez_meje_in_ob_dosezeni_porabi(okolje, posel_3_5):
     with pytest.raises(SystemExit, match="max-sekund"):
         qpu.poslji(_argumenti(None), None, BACKEND, PREOSTANEK, [posel_3_5])
@@ -394,6 +432,7 @@ def test_zavrne_brez_meje_in_ob_dosezeni_porabi(okolje, posel_3_5):
     with pytest.raises(SystemExit, match="dosežena"):  # preostanka ni mogoče prebrati
         qpu.poslji(_argumenti(100), None, BACKEND, {}, [posel_3_5])
     assert okolje == []
+
 
 def test_zavrne_obstojeco_datoteko_in_prevec_poslov(okolje, tmp_path, posel_3_5):
     posli = [posel_3_5, posel_3_5]
@@ -407,12 +446,14 @@ def test_zavrne_obstojeco_datoteko_in_prevec_poslov(okolje, tmp_path, posel_3_5)
         qpu.poslji(_argumenti(100), None, BACKEND, {"usage_remaining_seconds": 50}, posli)
     assert okolje == []  # nič ni bilo poslano
 
+
 def test_lokalni_zagon_ne_prepise_placanega(okolje, tmp_path, posel_3_5):
     placani = tmp_path / "t.json"
     placani.write_text(json.dumps({"fake": False, "posli": []}))
     with pytest.raises(SystemExit, match="lokalni preizkus"):
         qpu.poslji(_argumenti(100, fake=True), None, BACKEND, {}, [posel_3_5])
     assert json.loads(placani.read_text()) == {"fake": False, "posli": []}
+
 
 def test_lokalna_pot_od_oddaje_do_analize(okolje, tmp_path, posel_3_5):
     """--fake: šumni simulator namesto procesorja, zapis v rezultati/qpu/<ime>.json in analiza deleža zmag."""

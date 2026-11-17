@@ -1,1 +1,2 @@
 {"cas": "2026-11-11T07:54:32+00:00", "job_id": "dbq1uek4148s739vdnp0", "backend": "ibm_fez", "fake": false, "shots": 1000, "ime_poskusa": "igra", "max_sekund": 37, "ocena_cas_s": 22.45, "ocena_ibm_s": null, "st_vezij": 72, "porabljen_cas_s": 21.0}
+{"cas": "2026-11-17T14:20:51+00:00", "job_id": "dbu65hhjbrss73a7ar00", "backend": "ibm_fez", "fake": false, "shots": 1000, "posnetkov": 122000, "ime_poskusa": "igra2", "max_sekund": 58, "ocena_cas_s": 36.65, "ocena_ibm_s": null, "st_vezij": 122, "porabljen_cas_s": 34.0}

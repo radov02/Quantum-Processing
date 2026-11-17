@@ -41,8 +41,8 @@ import igra  # noqa: E402
 from ibm_skupno import (KOREN, beri_dnevnik, dodaj_v_dnevnik, dopolni_zapis, povezi, st_dvokubitnih,  # noqa: E402
                         stetja_iz_rezultata)
 
-# model porabe: fiksni čas na posel + čas na posnetek. Zagon igre je uporabil --model-posnetek-ms 0.284: ocena
-# 22,5 s, obračunano 21 s (72 vezij x 1000 posnetkov, rezultati/naloge.jsonl).
+# model porabe: fiksni čas na posel + čas na posnetek. Oba zagona igre sta uporabila --model-posnetek-ms 0.284: ocena
+# 22,5 s in 36,7 s, obračunano 21 s in 34 s (72 in 122 vezij x 1000 posnetkov, rezultati/naloge.jsonl).
 CAS_POSEL_S = 2.0
 CAS_POSNETEK_S = 0.35e-3
 OZNAKA = "skupina20"
