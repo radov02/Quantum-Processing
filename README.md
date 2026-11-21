@@ -1,6 +1,6 @@
 # Igra GHZ na procesorju IBM: kvantna in klasična strategija ob šumu
 
-Seminarska naloga pri predmetu NPMP 2026/27 (kvantno procesiranje), Skupina 20: Dominik Krašovec in Erik Radovičevič.
+Seminarska naloga pri predmetu NPMP 2026/27 (kvantno procesiranje), Skupina 20: Erik Radovičevič in Dominik Krašovec.
 
 **Raziskovalno vprašanje.** Do koliko igralcev N kvantna strategija na šumnem procesorju IBM Heron (ibm_fez, 156
 kubitov) v igri GHZ še premaga najboljšo klasično strategijo in koliko šum pri tem zmanjša delež zmag?
