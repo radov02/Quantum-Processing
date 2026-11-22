@@ -2,6 +2,8 @@
 
 Seminarska naloga pri predmetu NPMP 2026/27 (kvantno procesiranje), Skupina 20: Erik Radovičevič in Dominik Krašovec.
 
+Repozitorij: [github.com/radov02/Quantum-Processing](https://github.com/radov02/Quantum-Processing).
+
 **Raziskovalno vprašanje.** Do koliko igralcev N kvantna strategija na šumnem procesorju IBM Heron (ibm_fez, 156
 kubitov) v igri GHZ še premaga najboljšo klasično strategijo in koliko šum pri tem zmanjša delež zmag?
 
