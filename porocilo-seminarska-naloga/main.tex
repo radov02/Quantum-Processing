@@ -1,9 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Skupina20/main.tex -- Igra GHZ na procesorju IBM: kvantna in klasična strategija ob šumu
-%
-% Pravila predloge: brez dodatnih paketov, slike v Skupina20/img/,
-% vse oznake in ključi virov z "g20:", naši viri v references.bib v tej mapi
-% (gradnja jih doda k references.bib predloge).
+% Slike so v Skupina20/img/, oznake in ključi virov se začnejo z "g20:", viri so v references.bib v tej mapi.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \graphicspath{{Skupina20/img/}}
@@ -13,88 +10,53 @@
 \author{Erik Radovičevič in Dominik Krašovec}
 \maketitle
 
-\abstract{Zanimalo nas je, do koliko igralcev kvantna strategija v igri GHZ na procesorju IBM še premaga najboljšo klasično strategijo in koliko šum zmanjša delež zmag. V igri vsak od $N$ igralcev dobi en bit in nanj odgovori z enim bitom. Med igro igralci ne smejo komunicirati. Če si igralci delijo stanje GHZ, brez šuma vedno zmagajo. S klasično strategijo zmagajo z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$. Igro smo izvedli na dveh simulatorjih in v dveh meritvah na procesorju ibm\_fez. V obeh meritvah je bil delež zmag do 40 igralcev za več kot dve standardni napaki nad klasično mejo (pri treh igralcih 0,95 in 0,96, pri štiridesetih 0,55 in 0,57). Pri 50 in 60 igralcih je ta pogoj veljal le v eni meritvi, pri 75 igralcih v nobeni. Pri 5 do 40 igralcih bi več kot polovico padca povzročile že same napake branja. Igra je preprost preizkus, ali prepletenost preživi šum procesorja.}
-
-
+\abstract{Zanimalo nas je, do koliko igralcev kvantna strategija v igri GHZ na procesorju IBM še premaga najboljšo klasično strategijo in koliko šum zmanjša delež zmag. V igri vsak od $N$ igralcev dobi en bit in nanj brez komunikacije odgovori z enim bitom. S skupnim stanjem GHZ brez šuma vedno zmagajo, s klasično strategijo pa z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$. Igro smo izvedli na dveh simulatorjih in v dveh meritvah na procesorju ibm\_fez. Šumna simulacija je napovedala zmago vsaj do 50 igralcev. V obeh meritvah je bil delež zmag do 40 igralcev za več kot dve standardni napaki nad klasično mejo (pri treh igralcih 0,95 in 0,96, pri štiridesetih 0,55 in 0,57). Pri 50 in 60 igralcih je ta pogoj veljal le v eni meritvi, pri 75 igralcih v nobeni. Igra je preprost preizkus, ali prepletenost preživi šum procesorja.}
 
 
 \section{Uvod}
 \label{g20:sec:uvod}
 
-Z vidika računalništva je kvantni računalnik nov tip procesorja. Program je kvantno vezje, prevajalnik ga preslika na vrata
-in povezave konkretnega čipa, procesor pa ga izvede. Kvantni algoritmi izkoriščajo superpozicijo in prepletenost
-kubitov~\cite{nielsen2010}, današnji procesorji pa so šumni~\cite{preskill2018}. Napake nastajajo pri izvajanju
-dvokubitnih vrat, med čakanjem kubitov in pri meritvi, ko procesor prebere stanje kubita. Za programerja je zato smiselno
-vprašanje, koliko prepletenosti se na resničnem procesorju kljub šumu sploh ohrani.
+Z vidika računalništva je kvantni računalnik nov tip procesorja. Program je kvantno vezje, prevajalnik ga preslika na vrata in povezave konkretnega čipa, procesor pa ga izvede. Kvantni algoritmi izkoriščajo superpozicijo in prepletenost kubitov~\cite{nielsen2010}, vendar vemo, da so današnji procesorji šumni~\cite{preskill2018}. Napake nastajajo pri izvajanju dvokubitnih vrat, med čakanjem kubitov in pri meritvi, ko procesor prebere stanje kubita. Za programerja je zato smiselno vprašanje, koliko prepletenosti se na resničnem procesorju kljub šumu sploh ohrani.
 
-Preprost preizkus za to je \emph{igra GHZ} (slika~\ref{g20:fig:igra}), ki jo imenujejo tudi Merminova igra. Gre za problem
-iz porazdeljenega računanja. Vsak od $N$ igralcev dobi en bit in mora odgovoriti z enim bitom, igralci pa med seboj
-ne smejo komunicirati. Če si igralci pred igro razdelijo prepleteno stanje Greenberger--Horne--Zeilinger
-(GHZ)~\cite{g20:greenberger1990}
+Preprost preizkus za to je \emph{igra GHZ} (slika~\ref{g20:fig:igra}), ki jo imenujejo tudi Merminova igra. Gre za problem iz porazdeljenega računanja. Vsak od $N$ igralcev dobi en bit in mora odgovoriti z enim bitom, pri čemer igralci med seboj ne smejo komunicirati. Če si igralci pred igro razdelijo prepleteno stanje Greenberger--Horne--Zeilinger (GHZ)~\cite{g20:greenberger1990}
 \begin{equation}
 \ket{\mathrm{GHZ}_N} = \frac{1}{\sqrt{2}}\left(\ket{0}^{\otimes N} + \ket{1}^{\otimes N}\right),
 \label{g20:eq:ghz}
 \end{equation}
-v idealnem primeru vedno zmagajo. Najboljša klasična strategija pa zmaga z verjetnostjo največ
-$1/2+2^{-\lceil N/2\rceil}$~\cite{g20:brassard2005}. Igra ima torej klasično rešitev, s katero lahko rezultat kvantnega
-procesorja neposredno primerjamo. Kubiti v stanju~\eqref{g20:eq:ghz} so prepleteni. Stanja ne moremo zapisati kot stanja
-vsakega kubita posebej, zato so izidi njihovih meritev povezani. Če kubite izmerimo takoj, so vsi izidi enaki, bodisi vsi 0
-bodisi vsi 1.
+v idealnem primeru vedno zmagajo. Najboljša klasična strategija pa zmaga z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$~\cite{g20:brassard2005}. Igra ima torej klasično rešitev, s katero lahko rezultat kvantnega procesorja neposredno primerjamo. Kubiti v stanju~\eqref{g20:eq:ghz} so prepleteni, kar pomeni, da stanja ne moremo zapisati kot stanja vsakega kubita posebej, zato so izidi njihovih meritev povezani. Če kubite izmerimo takoj na začetku, so vsi izidi enaki, bodisi vsi 0 bodisi vsi 1.
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[x=1cm,y=1cm,>=stealth,font=\small]
-\node[draw,rounded corners,fill=black!6,minimum width=8.6cm,minimum height=0.8cm] at (0,3.4)
-  {sodnik izbere bite $x_1,\dots,x_N$ s sodo vsoto in preveri odgovore};
+\node[draw,rounded corners,fill=black!6,minimum width=8.6cm,minimum height=1.2cm,align=center] at (0,3.6)
+  {sodnik zagotovi: $\bigl(\sum_j x_j\bigr) \bmod 2 = 0$\\
+   sodnik preveri: $\bigl(\sum_j y_j\bigr) \bmod 2 = \bigl(\tfrac{1}{2}\sum_j x_j\bigr) \bmod 2$};
 \foreach \x/\ime in {-3.2/1,-1.1/2,3.2/N} {
   \node[draw,minimum width=1.7cm,minimum height=0.9cm,fill=white] at (\x,1.3) {igralec $\ime$};
   \draw[->] (\x-0.3,3.0) -- node[left] {$x_{\ime}$} (\x-0.3,1.75);
   \draw[->] (\x+0.3,1.75) -- node[right] {$y_{\ime}$} (\x+0.3,3.0);
-  \draw[line width=1.2pt,black!45] (\x,0.85) -- (\x,0.2);
 }
 \node at (1.05,1.3) {$\cdots$};
 \foreach \x in {-2.15,0,2.1} \draw[dashed] (\x,0.55) -- (\x,2.6);
-\draw[line width=1.2pt,black!45] (-3.2,0.2) -- (3.2,0.2);
-\node[font=\footnotesize] at (0,-0.15) {skupno stanje GHZ, pripravljeno pred igro (en kubit na igralca)};
-\node[font=\footnotesize,align=center] at (0,-0.8)
-  {črtkane črte ločijo igralce, ki med igro ne morejo komunicirati\\
-   pogoj za zmago je $y_1\oplus\dots\oplus y_N=\tfrac{1}{2}(x_1+\dots+x_N)\bmod 2$};
+\node[font=\footnotesize,align=center] at (0,-0.05)
+  {vsak igralec ima en kubit skupnega stanja GHZ, pripravljenega pred igro\\
+   črtkane črte ločijo igralce, ki med igro ne morejo komunicirati};
 \end{tikzpicture}
-\caption{Igra GHZ. Vsak igralec dobi en bit $x_i$ in odgovori z enim bitom $y_i$, ne da bi poznal bite drugih. Igralci s
-skupnim stanjem GHZ v idealnem primeru vedno zmagajo, brez njega pa z verjetnostjo največ $1/2+2^{-\lceil N/2\rceil}$.}
+\caption{Igra GHZ. Vsak igralec dobi en bit $x_j$ in odgovori z enim bitom $y_j$, ne da bi poznal bite drugih.}
 \label{g20:fig:igra}
 \end{figure}
 
-\textbf{Kaj so drugi že naredili.} Igra izhaja iz Merminove neenakosti za $N$ delcev~\cite{g20:mermin1990}. Ta neenakost
-postavlja mejo povezanosti izidov meritev, ki je noben klasičen opis ne more preseči, stanje GHZ pa jo preseže. Igra GHZ
-izraža isto idejo z verjetnostjo zmage. Kot igro z zgornjo klasično mejo so jo zapisali Brassard, Broadbent in
-Tapp~\cite{g20:brassard2005}. Merminove neenakosti so preizkusili na 5-kubitnem procesorju IBM za 3, 4 in 5
-kubitov~\cite{g20:alsina2016} ter na 53-kubitnem procesorju IBM za 2 do 7 kubitov~\cite{g20:huang2020}. Prav to igro so
-nedavno izvedli na Googlovem superprevodnem procesorju Willow z največ 71 igralci in presegli klasično
-mejo~\cite{g20:kumar2025}. V zbornikih seminarskih nalog predmeta NPMP od 2017/18
-do 2023/24 in v zborniku 2025/26 z iskanjem po besedilu nismo našli nobene omembe stanj GHZ ali Merminove igre. Zbornika
-2024/25 nismo imeli.
+\textbf{Predhodna dela.} Igra izhaja iz Merminove neenakosti za $N$ delcev~\cite{g20:mermin1990}. Ta neenakost postavlja mejo povezanosti izidov meritev, ki je noben klasičen opis ne more preseči, stanje GHZ pa jo preseže. Igra GHZ izraža isto idejo z verjetnostjo zmage. Kot igro z zgornjo klasično mejo so jo zapisali Brassard, Broadbent in Tapp~\cite{g20:brassard2005}. Merminove neenakosti so preizkusili na 5-kubitnem procesorju IBM za 3, 4 in 5 kubitov~\cite{g20:alsina2016} ter na 53-kubitnem procesorju IBM za 2 do 7 kubitov~\cite{g20:huang2020}. Prav to igro so nedavno izvedli na Googlovem superprevodnem procesorju Willow z največ 71 igralci in presegli klasično mejo~\cite{g20:kumar2025}.
 
-\textbf{Kaj ostaja odprto.} Preizkusi Merminove neenakosti na procesorjih IBM, ki smo jih našli, obsegajo največ 7 kubitov.
-Stanja GHZ so sicer pripravili že s 27 kubiti na procesorju IBM~\cite{g20:mooney2021} in s 120 superprevodnimi
-kubiti~\cite{g20:ibm2025bigcats}, vendar jih niso uporabili za igro. Zanima nas, do koliko igralcev kvantna strategija še
-premaga klasično na novejšem procesorju IBM, če uporabimo vezje, ki ga lahko sestavi vsak začetnik, in nekaj deset
-sekund brezplačnega procesorskega časa.
+\textbf{Odprta vprašanja.} Preizkusi Merminove neenakosti na procesorjih IBM, ki smo jih našli, obsegajo največ 7 kubitov. Stanja GHZ so sicer pripravili že s 27 kubiti na procesorju IBM~\cite{g20:mooney2021} in s 120 superprevodnimi kubiti~\cite{g20:ibm2025bigcats}, vendar jih niso uporabili za igro. Zanima nas, do koliko igralcev kvantna strategija še premaga klasično na novejšem procesorju IBM, če uporabimo preprosto vezje in nekaj deset sekund brezplačnega procesorskega časa.
 
 \begin{svgraybox}
-\textbf{Raziskovalno vprašanje.} Do koliko igralcev $N$ kvantna strategija na šumnem procesorju IBM Heron (ibm\_fez, 156
-kubitov) v igri GHZ še premaga najboljšo klasično strategijo in koliko šum pri tem zmanjša delež zmag?
+\textbf{Raziskovalno vprašanje.} Do koliko igralcev $N$ kvantna strategija na šumnem procesorju IBM Heron (ibm\_fez, 156 kubitov) v igri GHZ še premaga najboljšo klasično strategijo in koliko šum pri tem zmanjša delež zmag?
 
-\textbf{Pričakovani rezultat.} Na idealnem simulatorju je delež zmag enak 1. Pričakovali smo, da ga bo šum z naraščajočim
-$N$ zniževal proti $1/2$. Ker se tudi klasična meja pri tem hitro približuje $1/2$, naj bi procesor klasično strategijo
-premagal še pri več deset igralcih. Šumno simulacijo smo izvedli isti dan kot prvo meritev in
-neodvisno od njenih izidov. Dala je delež zmag 0,98 pri $N=3$, 0,81 pri $N=20$ in 0,57 pri $N=50$. Napoved je bila torej
-zmaga nad klasično mejo vsaj do 50 igralcev.
+\textbf{Pričakovani rezultat.} Na idealnem simulatorju je delež zmag enak 1. Pričakujemo, da bo šum, ki se v resnici pojavlja na današnjih procesorjih, z naraščajočim $N$ zniževal verjetnost proti $1/2$. Ker se tudi klasična meja pri tem hitro približuje $1/2$, bi moral procesor klasično strategijo premagati tudi pri več deset igralcih.
 \end{svgraybox}
 
-V razdelku~\ref{g20:sec:metode} opišemo igro, obe strategiji, vezje in potek poskusov. V razdelku~\ref{g20:sec:rezultati}
-predstavimo rezultate na obeh simulatorjih in na procesorju. V razdelku~\ref{g20:sec:razprava} odgovorimo na raziskovalno
-vprašanje in opišemo omejitve.
+V razdelku~\ref{g20:sec:metode} opišemo igro, obe strategiji, vezje in potek poskusov. V razdelku~\ref{g20:sec:rezultati} predstavimo rezultate na obeh simulatorjih in na procesorju. V razdelku~\ref{g20:sec:razprava} odgovorimo na raziskovalno vprašanje in opišemo omejitve.
 
 
 \section{Metode}
@@ -103,232 +65,216 @@ vprašanje in opišemo omejitve.
 \subsection{Orodja in nastavitve}
 \label{g20:sec:orodja}
 
-Vezja smo sestavljali in izvajali v okolju Qiskit~\cite{qiskit2024}, ker neposredno podpira procesorje IBM in njihove
-šumne modele (tabela~\ref{g20:tab:orodja}). Oba simulatorja uporabljata metodo MPS (angl.\ \emph{matrix product state}),
-ki stanja ne hrani kot vseh $2^N$ amplitud, temveč v stisnjeni obliki. Za stanje GHZ je ta zapis majhen, zato lahko tudi
-50 kubitov simuliramo na običajnem prenosnem računalniku. Primitiv SamplerV2 izvede vezja na procesorju in za vsako vezje vrne, kolikokrat je
-bil izmerjen posamezen niz bitov. Prevajalnik z nastavitvijo \texttt{optimization\_level=1} vezje le malo poenostavi.
-Razpored ALAP (angl.\ \emph{as late as possible}) postavi vsaka vrata čim pozneje in v vezje zapiše tudi čakanje kubitov.
-Tako šumni simulator upošteva tudi napake med čakanjem, iz razporeda pa lahko izračunamo, koliko časa traja izvedba
-vezja na procesorju.
+Vezja smo sestavljali in izvajali v okolju Qiskit~\cite{qiskit2024}, ker neposredno podpira procesorje IBM in njihove šumne modele. Igro smo izvedli na tri načine, in sicer na procesorju ibm\_fez, na idealnem simulatorju in na šumnem simulatorju, ter primerjali rezultate na vseh treh z rezultati po klasični strategiji. Nastavitve vseh treh izvedb primerja tabela~\ref{g20:tab:orodja}.
 
-Procesorje IBM smo uporabljali prek oblaka. Brezplačni paket Open Plan omogoča 10 minut (600~s) procesorskega časa v 28
-dneh~\cite{g20:ibmplan}. Naloge (angl.\ \emph{job}, v kodi \texttt{posel}) smo zato oddajali s skripto \path{src/qpu.py}.
-Skripta pred oddajo izpiše lastnosti vezij in oceno porabe časa po navodilih IBM~\cite{g20:ibmjobtime} ter nalogi nastavi največje trajanje. Brez vnaprej
-določene zgornje meje porabe ne odda ničesar.
+\textbf{Procesor ibm\_fez} je kvantni procesor IBM iz družine Heron (različica r2). Ima 156 kubitov~\cite{g20:ibmprocessors}, razporejenih v mrežo, v kateri je vsak kubit povezan z največ tremi sosedi (slika~\ref{g20:fig:cip}). Dvokubitna vrata lahko izvede le med sosednjima povezanima kubitoma. Procesor privzeto izvaja dvokubitna vrata CZ ter enokubitna vrata RZ, SX in X, zato prevajalnik vezje pred oddajo zapiše s temi vrati. Mi smo procesor uporabljali prek oblaka z brezplačnim paketom Open Plan, ki nam da na voljo 10 minut (600~s) procesorskega časa v 28 dneh~\cite{g20:ibmplan}. Vezja na procesorju izvede primitiv SamplerV2, ki za vsako vezje vrne, kolikokrat je bil izmerjen posamezen niz bitov. Vsako vezje, ki predstavlja eno GHZ igro z neko vhodno besedo bitov, smo izvedli 1000-krat (1000 ponovitev, angl.\ \emph{shots}). Naloge (angl.\ \emph{job}) smo oddajali s skripto, ki pred oddajo izpiše lastnosti vezij in oceno porabe časa po navodilih IBM~\cite{g20:ibmjobtime} ter nalogi nastavi največje trajanje.
+
+\textbf{Prevajanje.} Vezja za procesor in za šumni simulator prevedemo z enakimi nastavitvami. Prevajalnik z nastavitvijo \texttt{optimization\_level=1} vezje le malo poenostavi. Razpored ALAP (angl.\ \emph{as late as possible}) postavi vsaka vrata čim pozneje in v vezje zapiše tudi čakanje kubitov. Iz razporeda lahko izračunamo, koliko časa traja izvedba vezja na procesorju.
+
+\textbf{Idealni simulator} je program Qiskit Aer, ki vezje izračuna na običajnem računalniku brez napak. Ne posnema nobenega procesorja, zato zanj ne izbiramo kubitov in vezja ne prevajamo. Z njim preverimo, da strategija brez šuma vedno zmaga.
+
+\textbf{Šumni simulator} je isti program Aer, ki mu dodamo šumni model FakeFez iz knjižnice qiskit-ibm-runtime. To je posnetek objavljenih napak procesorja ibm\_fez s 26.\,2.\,2025. Simulator izvaja vezja, prevedena za ta posnetek, in tako brez porabe procesorskega časa napove, kakšen izid lahko pričakujemo na procesorju. V vsaki ponovitvi vezja naključno doda tri vrste napak. Uporabili smo jih, ker jih IBM za vsak kubit in vsako povezavo meri in objavlja, vsaka od njih pa lahko obrne izid kubita in s tem pariteto odgovorov.
+\begin{itemize}
+\item \emph{Napake vrat.} Po vsakih vratih CZ, SX in X se z verjetnostjo iz posnetka zgodi naključna napaka. Napake dvokubitnih vrat smo poenostavili (razdelek~\ref{g20:sec:neuspehi}) in jih nadomestili z naključnimi napakami vrste X, Z in Y na enem ali obeh kubitih, tako da je povprečna napaka vrat ostala enaka. Napaka X zamenja 0 in 1, napaka Z obrne predznak pri $\ket{1}$, napaka Y pa naredi oboje.
+\item \emph{Izguba stanja med čakanjem.} Kubit s časom izgublja stanje. Simulator to napako doda ob vsakem čakanju kubita, ki ga v vezje zapiše razpored ALAP. Njena verjetnost je tem večja, čim dlje kubit čaka.
+\item \emph{Napake branja.} Dodamo jih šele po simulaciji. Vsak prebrani bit obrnemo z verjetnostjo iz posnetka, ki je za stanji 0 in 1 različna.
+\end{itemize}
+
+Oba simulatorja tečeta na prenosnem računalniku in uporabljata metodo MPS (angl.\ \emph{matrix product state}), ki stanja ne hrani kot vseh $2^N$ amplitud, temveč v stisnjeni obliki. Za stanje GHZ je ta zapis majhen, zato lahko tudi 50 kubitov simuliramo na običajnem prenosnem računalniku. Na simulatorjih smo vsako vezje izvedli 250-krat.
 
 \begin{table}[htbp]
-\caption{Orodja in nastavitve.}
+\caption{Nastavitve treh izvedb igre (zgoraj) in nastavitve, ki so skupne vsem (spodaj).}
 \label{g20:tab:orodja}
 \centering
-\begin{tabular}{ll}
+\small
+\begin{tabularx}{\textwidth}{@{}p{2.9cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
 \toprule
-Parameter & Vrednost \\
+& procesor ibm\_fez & idealni simulator & šumni simulator \\
 \midrule
-Python & 3.13 \\
-Qiskit, Qiskit Aer, qiskit-ibm-runtime & 2.6.1, 0.18.2, 0.51.0 \\
-kvantni procesor & ibm\_fez (IBM Heron, 156 kubitov) \\
-ID prve meritve (11.\,11.\,2026) & \texttt{dbq1uek4148s739vdnp0} \\
-ID druge meritve (17.\,11.\,2026) & \texttt{dbu65hhjbrss73a7ar00} \\
-idealni simulator & Aer, metoda MPS, brez šuma \\
-šumni simulator & Aer, metoda MPS, model FakeFez (26.\,2.\,2025) \\
-primitiv (procesor) & SamplerV2 \\
-prevajanje & \texttt{optimization\_level=1}, razpored vrat ALAP \\
-izbira kubitov & po objavljenih napakah (razdelek~\ref{g20:sec:poskusi}) \\
-ponovitve (angl.\ \emph{shots}) & 1000 na vezje (procesor), 250 (simulatorja) \\
-vhodi igre & 8 naključnih veljavnih vhodov za vsak $N$ \\
-ublažitev napak & brez \\
-semena & vhodi igre $5+N$, prevajalnik 7, simulator 11 \\
+kje teče & oblak IBM & prenosni računalnik & prenosni računalnik \\
+izvedba vezij & primitiv SamplerV2 & Aer, metoda MPS & Aer, metoda MPS \\
+šum & resnični & brez & model FakeFez (26.\,2.\,2025) \\
+izbira kubitov & po objavljenih napakah na dan meritve & ni potrebna & po napakah iz modela \\
+prevajanje & da & ne & da \\
+ponovitve na vezje & 1000 & 250 & 250 \\
+število igralcev $N$ & 3 do 75 & 3 do 50 & 3 do 50 \\
+zatiranje in blaženje napak & brez & -- & brez \\
+seme simulatorja & -- & 11 & 11 \\
+\midrule
+programska oprema & \multicolumn{3}{@{}l@{}}{Python 3.13, Qiskit 2.6.1, Qiskit Aer 0.18.2, qiskit-ibm-runtime 0.51.0} \\
+nastavitve prevajanja & \multicolumn{3}{@{}l@{}}{\texttt{optimization\_level=1}, razpored vrat ALAP, seme 7} \\
+vhodi igre & \multicolumn{3}{@{}l@{}}{8 naključnih veljavnih vhodov za vsak $N$, seme $5+N$} \\
+ID prve meritve & \multicolumn{3}{@{}l@{}}{\texttt{dbq1uek4148s739vdnp0} (11.\,11.\,2026)} \\
+ID druge meritve & \multicolumn{3}{@{}l@{}}{\texttt{dbu65hhjbrss73a7ar00} (17.\,11.\,2026)} \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{Igra GHZ in obe strategiji}
 \label{g20:sec:igra}
 
-\textbf{Pravila.} V igri sodeluje $N\ge3$ igralcev~\cite{g20:brassard2005}. Sodnik izbere bite $x_1,\dots,x_N$, katerih
-vsota je soda. Tak izbor imenujemo veljaven vhod. Igralcu $i$ sodnik pove le bit $x_i$. Igralci med igro ne smejo
-komunicirati in vsak odgovori z enim bitom $y_i$. Zmagajo vsi skupaj, če velja
+\textbf{Pravila.} V igri sodeluje $N\ge3$ igralcev~\cite{g20:brassard2005}. Sodnik izbere bite $x_1,\dots,x_N$, katerih vsota je soda in tak izbor imenujemo veljaven vhod. Igralcu $j$ sodnik pove le bit $x_j$. Igralci med igro ne smejo komunicirati in vsak mora odgovoriti z enim bitom $y_j$. Zmagajo vsi skupaj, če je pariteta odgovorov enaka pariteti polovice vsote vhodov:
 \begin{equation}
 y_1\oplus y_2\oplus\dots\oplus y_N = \frac{x_1+x_2+\dots+x_N}{2} \bmod 2 .
 \label{g20:eq:igra}
 \end{equation}
-Znak $\oplus$ označuje vsoto po modulu 2. Leva stran je torej 1, kadar je med odgovori liho število enic, in 0, kadar je
-sodo. Temu pravimo pariteta odgovorov. Desna stran je 1, kadar je polovica števila enic v vhodu liha (na primer pri vhodu
-110), in 0, kadar je soda (na primer pri vhodu 000).
+Znak $\oplus$ označuje vsoto po modulu 2. Leva stran je torej 1, kadar je med odgovori liho število enic, in 0, kadar je sodo. Desna stran je 1, kadar je polovica števila enic v vhodu liha (na primer pri vhodu 110), in 0, kadar je soda (na primer pri vhodu 000).
 
-\textbf{Klasična rešitev.} Brez prepletenih kubitov lahko vsak igralec odgovori le na podlagi svojega bita in vnaprej
-dogovorjene strategije. Vsak igralec ima le štiri možnosti. Lahko vedno odgovori 0, vedno odgovori 1, ponovi svoj bit ali
-ga obrne. Če so vsi veljavni vhodi enako verjetni, nobena taka strategija ne zmaga z verjetnostjo, večjo
-od~\cite{g20:brassard2005}
+\textbf{Klasična rešitev.} Brez prepletenih kubitov lahko vsak igralec odgovori le na podlagi svojega bita in vnaprej dogovorjene strategije. Vsak igralec ima le štiri možnosti. Lahko vedno odgovori 0, vedno odgovori 1, ponovi svoj bit ali ga obrne. Če so vsi veljavni vhodi enako verjetni, nobena taka strategija ne zmaga z verjetnostjo, večjo od~\cite{g20:brassard2005}
 \begin{equation}
 p_\text{klas}(N) = \frac{1}{2} + 2^{-\lceil N/2\rceil},
 \label{g20:eq:meja}
 \end{equation}
-kar je 0,75 pri $N=3$, 0,53 pri $N=10$ in manj kot 0,5001 pri $N\ge 30$. Tudi naključna mešanica strategij ne pomaga. Pri
-njej igralci pred igro skupaj izžrebajo, katero strategijo bodo uporabili. Njena verjetnost zmage je zato povprečje
-verjetnosti zmage posameznih strategij, povprečje pa ne more biti večje od največje izmed njih.
+kar je 0,75 pri $N=3$, 0,53 pri $N=10$ in manj kot 0,5001 pri $N\ge 30$. Tudi naključna mešanica strategij ne pomaga. Pri njej igralci pred igro skupaj izžrebajo, katero strategijo bodo uporabili. Njena verjetnost zmage je zato povprečje verjetnosti zmage posameznih strategij, povprečje pa ne more biti večje od največje izmed njih.
 
-Za primer vzemimo $N=3$. Če vsi trije igralci vedno odgovorijo 1, zmagajo pri vhodih 110, 101 in 011, pri vhodu 000 pa
-izgubijo. Da se pri treh igralcih ne da doseči več, pokažemo tako. Strategijo določa šest bitov, in sicer
-odgovora $y_i(0)$ in $y_i(1)$ vsakega od treh igralcev. Štirje veljavni vhodi dajo štiri pogoje oblike~\eqref{g20:eq:igra}. Če jih seštejemo po
-modulu 2, se na levi strani vsak od šestih bitov pojavi natanko dvakrat, zato je leva stran enaka 0. Vsota desnih strani
-pa je $0+1+1+1$, kar je po modulu 2 enako 1. Vsaka strategija torej izgubi pri vsaj enem od štirih enako verjetnih vhodov,
-zato zmaga z verjetnostjo največ $3/4$. Mejo~\eqref{g20:eq:meja} smo za $N=3$ do 12 preverili tudi sami, tako da smo
-pregledali vse strategije (ukaz \texttt{meja} v \path{src/igra.py}).
+Za primer vzemimo $N=3$. Če vsi trije igralci vedno odgovorijo 1, zmagajo pri vhodih 110, 101 in 011, pri vhodu 000 pa izgubijo. Zmagajo torej z verjetnostjo $3/4$. Večje verjetnosti zmage se pri treh igralcih ne da doseči, saj strategijo igralca $j$ določata dva vnaprej izbrana bita, in sicer odgovor $a_j$ na bit 0 in odgovor $b_j$ na bit 1, vendar bi za zmago pri vseh štirih veljavnih vhodih morali hkrati veljati štirje pogoji oblike~\eqref{g20:eq:igra}:
+\[
+\begin{aligned}
+\text{vhod 000:}\quad & a_1\oplus a_2\oplus a_3 = 0,\\
+\text{vhod 110:}\quad & b_1\oplus b_2\oplus a_3 = 1,\\
+\text{vhod 101:}\quad & b_1\oplus a_2\oplus b_3 = 1,\\
+\text{vhod 011:}\quad & a_1\oplus b_2\oplus b_3 = 1.
+\end{aligned}
+\]
+Seštejmo vse štiri pogoje po modulu 2. Na levi strani se vsak od šestih bitov pojavi natanko dvakrat, zato je vsota enaka 0. Vsota desnih strani pa je $0\oplus1\oplus1\oplus1=1$. Vsi štirje pogoji zato ne morejo veljati hkrati. Vsaka strategija torej izgubi pri vsaj enem od štirih enako verjetnih vhodov in zmaga z verjetnostjo največ $3/4$.
 
-\textbf{Kvantna strategija.} Igralci si pred igro razdelijo stanje GHZ~\eqref{g20:eq:ghz}, tako da vsak dobi en kubit.
-Igralec, ki dobi $x_i=1$, na svojem kubitu izvede vrata S. Nato vsi igralci izvedejo vrata H in izmerijo svoj kubit. Izid
-meritve je odgovor $y_i$ (slika~\ref{g20:fig:igra-vezje}). Pokažimo, zakaj ta strategija deluje. Vrata S pustijo $\ket{0}$
-nespremenjeno, $\ket{1}$ pa pomnožijo z $i$. Recimo, da vrata S izvede $k$ igralcev. Število $k$ je sodo, ker je vsota
-vhodov soda. Člen $\ket{1}^{\otimes N}$ tako dobi faktor $i^k=(-1)^{k/2}$. Predznak med členoma stanja GHZ je zato plus,
-če je $k/2$ sodo, in minus, če je $k/2$ liho. Vrata H na vseh kubitih naredijo iz $\ket{0}^{\otimes N}$ vsoto vseh nizov
-odgovorov s predznakom plus. Iz $\ket{1}^{\otimes N}$ naredijo vsoto, v kateri ima niz predznak minus, kadar vsebuje liho
-število enic. Pri predznaku plus med členoma se zato izničijo nizi z lihim številom enic, pri predznaku minus pa nizi s
-sodim številom enic. Pariteta odgovorov je torej enaka $k/2 \bmod 2$, kar je ravno pogoj~\eqref{g20:eq:igra}. Na
-idealnem simulatorju ta strategija zmaga pri vseh veljavnih vhodih za $N=3$, 5 in 6, kar preverjajo samodejni testi v
-\path{tests/test_igra.py}. Na idealnem simulatorju zmaga tudi pri vseh izbranih vhodih do $N=50$ (tabela~\ref{g20:tab:igra}).
+Mejo~\eqref{g20:eq:meja} smo za $N=3$ do 12 preverili tudi sami, tako da smo pregledali vse deterministične strategije.
+
+\textbf{Kvantna strategija.} Vsak igralec dobi en kubit. Pred igro, ko igralci še smejo sodelovati, kubite prepletejo v stanje GHZ~\eqref{g20:eq:ghz}. Med igro vsak igralec uporablja le svoj kubit (slika~\ref{g20:fig:igra-vezje}). Strategija ima štiri korake.
+\begin{enumerate}
+\item \textbf{Priprava stanja GHZ.} Na začetku so vsi kubiti v stanju $\ket{0}$. Na prvem kubitu izvedemo vrata H, ki ga postavijo v superpozicijo $\tfrac{1}{\sqrt2}(\ket{0}+\ket{1})$. Drugi kubit dodamo z vrati CNOT, pri katerih je prvi kubit kontrolni, drugi pa ciljni. Vrata CNOT obrnejo ciljni kubit, kadar je kontrolni kubit v stanju 1. Iz stanja $\tfrac{1}{\sqrt2}(\ket{0}+\ket{1})\ket{0}$ tako nastane $\tfrac{1}{\sqrt2}(\ket{00}+\ket{11})$. Vrata CNOT torej stanja ne kopirajo, temveč kubita prepletejo. Na enak način dodamo vsak naslednji kubit. Po $N-1$ vratih CNOT nastane stanje~\eqref{g20:eq:ghz}. Na sliki~\ref{g20:fig:igra-vezje} je kontrolni kubit obakrat prvi kubit, na pravem procesorju pa je kontrolni kubit tisti sosed ciljnega kubita, ki je že del stanja GHZ (razdelek~\ref{g20:sec:poskusi}).
+\item \textbf{Vrata S.} Igra se začne, igralci so ločeni in vsak dobi svoj bit. Vsak igralec, ki dobi $x_j=1$, na svojem kubitu izvede vrata S, vsak igralec z $x_j=0$ pa ne naredi ničesar. Vrata S pustijo $\ket{0}$ nespremenjeno, $\ket{1}$ pa pomnožijo z $i$. Vsaka vrata S zato člen $\ket{1}^{\otimes N}$ pomnožijo z $i$, ne glede na to, kateri igralec jih izvede. Faza tega člena se glede na člen $\ket{0}^{\otimes N}$ s tem zasuče za $90^\circ$. To si lahko predstavljamo kot zasuk skupnega stanja za $90^\circ$ okoli navpične osi krogle na sliki~\ref{g20:fig:igra-vezje} (desno). Naj bo $k$ število igralcev z $x_j=1$. Ker je vsota vhodov soda, je $k$ sodo, zato je skupni zasuk enakovreden zasuku za $0^\circ$, če je $k$ deljiv s 4, sicer pa $180^\circ$. Če je $k$ deljiv s 4, stanje ostane $\ket{\mathrm{GHZ}^+}=\tfrac{1}{\sqrt2}(\ket{0}^{\otimes N}+\ket{1}^{\otimes N})$. Sicer nastane stanje $\ket{\mathrm{GHZ}^-}=\tfrac{1}{\sqrt2}(\ket{0}^{\otimes N}-\ket{1}^{\otimes N})$.
+\item \textbf{Vrata H.} Nato vsi igralci na svojem kubitu izvedejo vrata H. Ta iz $\ket{0}^{\otimes N}$ naredijo vsoto vseh nizov s predznakom plus, iz $\ket{1}^{\otimes N}$ pa vsoto, v kateri ima niz predznak minus, kadar vsebuje liho število enic. Iz $\ket{\mathrm{GHZ}^+}$ zato ostanejo le nizi s sodim številom enic, iz $\ket{\mathrm{GHZ}^-}$ pa le nizi z lihim številom enic. Pri $N=3$ dobimo
+\[
+\begin{aligned}
+\ket{\mathrm{GHZ}^+} &\rightarrow \tfrac12\left(\ket{000}+\ket{011}+\ket{101}+\ket{110}\right),\\
+\ket{\mathrm{GHZ}^-} &\rightarrow \tfrac12\left(\ket{001}+\ket{010}+\ket{100}+\ket{111}\right).
+\end{aligned}
+\]
+\item \textbf{Meritev.} Vsak igralec izmeri svoj kubit, kar povzroči, da se stanje sistema iz superpozicije kolapsira v enega od nizov superpozicije, v kateri ima vsak niz enako verjetnost. Bit, ki ga igralec izmeri, je njegov odgovor $y_j$.
+\end{enumerate}
+Število enic med odgovori je torej sodo, kadar je $k$ deljiv s 4, in liho, kadar ni. Pariteta odgovorov je tako enaka $k/2 \bmod 2$, kar je ravno pogoj~\eqref{g20:eq:igra}. Igralci zato v idealnem primeru zmagajo pri vsakem veljavnem vhodu. Na idealnem simulatorju ta strategija zmaga pri vseh veljavnih vhodih za $N=3$, 5 in 6, kar preverjajo samodejni testi.
 
 \begin{figure}[htbp]
 \centering
-\begin{quantikz}[row sep=0.25cm, column sep=0.35cm]
+\begin{minipage}[c]{0.62\textwidth}
+\centering
+\begin{quantikz}[row sep=0.25cm, column sep=0.3cm]
 \lstick{igralec 1, $x_1=1$} & \gate{H} & \ctrl{1} & \ctrl{2} & \gate{S} & \gate{H} & \meter{} \\
 \lstick{igralec 2, $x_2=1$} & \qw      & \targ{}  & \qw      & \gate{S} & \gate{H} & \meter{} \\
 \lstick{igralec 3, $x_3=0$} & \qw      & \qw      & \targ{}  & \qw      & \gate{H} & \meter{}
 \end{quantikz}
-\caption{Vezje igre za $N=3$ in vhod $x=(1,1,0)$. Vrata H in dvoje vrat CNOT pripravijo stanje GHZ. Sledi poteza vsakega
-igralca, ki jo sestavljajo vrata S (le pri $x_i=1$), vrata H in meritev. Pri tem vhodu igralci zmagajo, če je število
-enic med odgovori liho.}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.36\textwidth}
+\centering
+\begin{tikzpicture}[>=stealth,font=\footnotesize]
+\draw (0,0) circle (1.05);
+\draw[dashed] (1.05,0) arc (0:180:1.05 and 0.3);
+\draw (-1.05,0) arc (180:360:1.05 and 0.3);
+\draw[->,thick] (0,0) -- (1.05,0);
+\draw[->,thick,black!45] (0,0) -- (-1.05,0);
+\fill (0,1.05) circle (1pt) (0,-1.05) circle (1pt);
+\node[above] at (0,1.05) {$\ket{0}^{\otimes N}$};
+\node[below] at (0,-1.05) {$\ket{1}^{\otimes N}$};
+\node[right] at (1.05,0) {GHZ$^{+}$};
+\node[left] at (-1.05,0) {GHZ$^{-}$};
+\draw[->,thick] (1.034,0.052) arc (10:85:1.05 and 0.3);
+\node[font=\scriptsize] at (0,0.62) {vrata S: $90^\circ$};
+\end{tikzpicture}
+\end{minipage}
+\caption{Levo: vezje igre za $N=3$ in vhod $x=(1,1,0)$. Vrata H in dvoje vrat CNOT pripravijo stanje GHZ. Sledi poteza vsakega igralca, ki jo sestavljajo vrata S (le pri $x_j=1$), vrata H in meritev. Pri tem vhodu igralci zmagajo, če je število enic med odgovori liho. Desno: skupno stanje kubitov pred vrati H kot točka na krogli, ki ima na polih stanji $\ket{0}^{\otimes N}$ in $\ket{1}^{\otimes N}$. Vsaka vrata S ga zasučejo za $90^\circ$ okoli navpične osi, dvoje vrat S torej stanje $\ket{\mathrm{GHZ}^+}$ spremeni v $\ket{\mathrm{GHZ}^-}$.}
 \label{g20:fig:igra-vezje}
 \end{figure}
 
 \subsection{Zasnova poskusov}
 \label{g20:sec:poskusi}
 
-\textbf{Vezje.} Stanje GHZ pripravimo z vrati H na prvem kubitu in $N-1$ vrati CNOT. Vrata CNOT obrnejo ciljni kubit,
-kadar je kontrolni kubit v stanju 1. Iz stanja $\tfrac{1}{\sqrt2}(\ket{0}+\ket{1})\ket{0}$ tako nastane
-$\tfrac{1}{\sqrt2}(\ket{00}+\ket{11})$. Vrata CNOT torej stanja ne kopirajo, temveč kubita prepletejo. Vrata CNOT
-razporedimo po povezavah čipa od začetnega kubita navzven, kot pri iskanju v širino, zato tvorijo drevo. Vsak kubit, ki je
-že del stanja GHZ, postane kontrolni kubit za vrata CNOT na tiste sosede, ki še niso del stanja. Globina vezja zato raste
-mnogo počasneje od $N$. Pri $N=75$ znaša pred prevajanjem le 16. Ker so vsa vrata CNOT med kubiti, ki so na čipu
-neposredno povezani, prevajalnik ne doda vrat SWAP. Ta vrata zamenjajo stanji dveh kubitov in so potrebna, kadar morata
-sodelovati kubita, ki na čipu nista neposredno povezana. Kubite izberemo po objavljenih napakah procesorja, ki jih IBM za
-vsak kubit in vsako povezavo redno meri in objavlja. Drevo zgradimo iz vsakega možnega začetnega kubita in obdržimo tisto
-z najmanjšo oceno. Ocena je vsota objavljenih napak branja in dvokubitnih vrat, ki ji prištejemo majhno kazen za globino
-drevesa. Poteza igralcev doda le enokubitna vrata S in H ter meritev.
+\textbf{Vezje.} Vrata CNOT, ki pripravijo stanje GHZ (razdelek~\ref{g20:sec:igra}), razporedimo po povezavah čipa od začetnega kubita navzven, kot pri iskanju v širino, zato tvorijo drevo (slika~\ref{g20:fig:cip}). Vsak kubit, ki je že del stanja GHZ, postane kontrolni kubit za vrata CNOT na tiste sosede, ki še niso del stanja. Globina vezja zato raste mnogo počasneje od $N$. Pri $N=75$ znaša pred prevajanjem le 16. Ker vsa vrata CNOT ležijo na povezavah čipa, ima vezje tudi po prevajanju $N-1$ dvokubitnih vrat. Kubite izberemo po objavljenih napakah procesorja, ki jih IBM za vsak kubit in vsako povezavo redno meri in objavlja. Drevo zgradimo iz vsakega možnega začetnega kubita in obdržimo tisto z najmanjšo vsoto objavljenih napak branja in dvokubitnih vrat, ki ji prištejemo majhno kazen za globino drevesa. Poteza igralcev doda le enokubitna vrata S in H ter meritev.
 
-\textbf{Vhodi.} Za vsak $N$ smo naključno izbrali 8 veljavnih vhodov in za vsakega sestavili svoje vezje. Pri $N=3$
-obstajajo le štirje veljavni vhodi, zato smo uporabili vse štiri, vsakega dvakrat. Oba simulatorja in procesor so dobili
-iste vhode.
+\textbf{Vhodi.} Za vsak $N$ smo naključno izbrali 8 veljavnih vhodov (besed vhodnih bitov), ki jih sodnik odda, in za vsakega sestavili svoje vezje GHZ sistema kubitov igralcev. Vezja istega $N$ se razlikujejo le po tem, na katerih kubitih so vrata S. Pri $N=3$ obstajajo le štirje veljavni vhodi, zato smo uporabili vse štiri, vsakega dvakrat. Oba simulatorja in procesor so dobili iste vhode. Vse ponovitve istega vezja igrajo igro z istim vhodom, razlikujejo se le izmerjeni odgovori, ker je izid meritve kubita naključen, na procesorju pa nanj vpliva še šum.
 
-\textbf{Tri izvedbe.}
+\textbf{Postavitev vezij na procesor.} Doslej opisano vezje je logično vezje. Njegovi kubiti so oštevilčeni od 0 do $N-1$ in niso vezani na noben čip. Na kvantni procesor ga prenesemo v štirih korakih.
 \begin{enumerate}
-\item \textbf{Idealni simulator} izvede vezje brez napak. Z njim preverimo, da strategija v idealnem primeru vedno zmaga.
-\item \textbf{Šumni simulator} uporablja šumni model FakeFez. To je posnetek objavljenih napak procesorja ibm\_fez
-      s 26.\,2.\,2025. Posnetek zajema napake vrat, izgubo stanja med čakanjem kubitov in napake branja. Simulator izbere kubite
-      po tem posnetku, zato uporablja deloma druge kubite kot procesor. Napake dvokubitnih vrat smo poenostavili, ker je
-      simulacija s polnim modelom obtičala (razdelek~\ref{g20:sec:neuspehi}). Nadomestili smo jih z naključnimi
-      napakami vrste X, Z in Y na enem ali obeh kubitih, tako da je povprečna napaka vrat ostala enaka. Napaka X zamenja
-      0 in 1, napaka Z obrne predznak pri $\ket{1}$, napaka Y pa naredi oboje. Napake branja dodamo šele po simulaciji,
-      tako da vsak prebrani bit obrnemo z verjetnostjo iz posnetka. Simulirali smo $N=3$, 5, 10, 20, 30, 40 in 50.
-\item \textbf{Procesor ibm\_fez} je izvedel dve nalogi, ki ju imenujemo prva in druga meritev. Njuna
-      ID-ja sta v tabeli~\ref{g20:tab:orodja}. Obe meritvi zajemata $N=3$, 5, 10, 20, 30, 40, 50, 60 in 75, iste vhode in
-      1000 ponovitev na vezje. Prva meritev (11.\,11.\,2026) ima 72 vezij, druga (17.\,11.\,2026) pa ima 122 vezij. Pri
-      $N=60$ in 75 je bil delež zmag v prvi meritvi od meje oddaljen manj kot dve standardni napaki. Zato smo v drugi meritvi
-      pri teh dveh $N$ vsako vezje vključili štirikrat. Izide štirih kopij istega vhoda seštejemo, kar da 4000 ponovitev na vhod.
-      Kubite za drugo meritev smo znova izbrali po objavljenih napakah tistega dne, pri čemer smo izločili kubit 148
-      (razdelek~\ref{g20:sec:neuspehi}). Pri $N\le20$ so kubiti isti kot v prvi meritvi, pri večjih $N$ pa deloma drugi.
-      Druga meritev ima še dve vezji za preverbo branja. Prvo vezje pripravi vse izbrane kubite v stanje 0, drugo v stanje
-      1. Obe vezji nato kubite takoj izmerita. Napak branja nismo popravljali, zato šteje odgovor, kot ga je procesor prebral.
+\item \textbf{Izbira kubitov.} Vsakemu logičnemu kubitu določimo en kubit čipa. Tej preslikavi pravimo postavitev (angl.\ \emph{layout}). Določi jo drevo, ki smo ga izbrali pri zasnovi vezja. Začetni kubit drevesa postane logični kubit 0, drugi kubiti drevesa pa logični kubiti 1, 2 in tako naprej, v vrstnem redu, v katerem jih drevo doseže. Slika~\ref{g20:fig:cip} kaže postavitev za $N=20$.
+\item \textbf{Prevajanje.} Prevajalniku z nastavitvijo \texttt{initial\_layout} podamo postavitev, da kubitov ne izbira sam. Prevajalnik vrata H, S in CNOT zapiše z vrati, ki jih procesor izvaja neposredno (razdelek~\ref{g20:sec:orodja}), zato vrata H postanejo zaporedje RZ, SX, RZ, vrata CNOT pa postanejo ena vrata CZ, pred katerimi in za katerimi je na ciljnem kubitu enako zaporedje.
+\item \textbf{Preverjanje.} Skripta pred oddajo za vsako prevedeno vezje preveri, da ima natanko $N-1$ dvokubitnih vrat in da meri prav izbrane kubite.
+\item \textbf{Oddaja.} Vsa prevedena vezja ene meritve, torej vezja za vse $N$ in vse vhode, oddamo prek oblaka kot eno nalogo. Iz števil izmerjenih nizov odgovorov, ki jih procesor vrne za vsako vezje, izračunamo delež zmag.
 \end{enumerate}
-Prva meritev je porabila 21~s, druga pa 34~s procesorskega časa. ID-ja in porabo obeh meritev hrani
-\path{rezultati/naloge.jsonl}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{ibm_fez_cip}
+\caption{Shema procesorja ibm\_fez. Krogi so kubiti s številkami, ki jih uporablja IBM. Črte so povezave, na katerih procesor izvaja dvokubitna vrata. Oranžni so kubiti, ki smo jih v obeh meritvah izbrali za igro z $N=20$ igralci. Debele črte so vrata CNOT, s katerimi pripravimo stanje GHZ. Začnejo se pri kubitu 107 (debel rob), na katerem izvedemo vrata H.}
+\label{g20:fig:cip}
+\end{figure}
+
+\textbf{Simulaciji.} Na obeh simulatorjih smo igrali z $N=3$, 5, 10, 20, 30, 40 in 50 igralci. Šumna simulacija ne uporablja nobenega izida meritev na procesorju, zato je njen rezultat neodvisna napoved. Kubite izbere po posnetku FakeFez in ne po napakah na dan meritve.
+
+\textbf{Meritvi na procesorju.} Procesor ibm\_fez je igro izvedel dvakrat, v dveh nalogah, ki ju imenujemo prva in druga meritev (ID-ja sta v tabeli~\ref{g20:tab:orodja}). V obeh smo igrali z $N=3$, 5, 10, 20, 30, 40, 50, 60 in 75 igralci in z istimi vhodi/vezji. Prva meritev (11.\,11.\,2026) ima 72 vezij, in sicer 8 vezij za vsakega od devetih $N$. Pri $N=60$ in 75 je bil delež zmag v njej od klasične meje oddaljen manj kot dve standardni napaki, zato smo v drugi meritvi (17.\,11.\,2026) pri teh dveh $N$ želeli več ponovitev. Vsako od njunih 16 vezij smo v nalogo vključili štirikrat in izide štirih kopij sešteli, kar da 4000 ponovitev na vhod. Druga meritev ima 122 vezij, in sicer 120 vezij igre ($7\cdot8+2\cdot8\cdot4$) in dve pomožni vezji, ki ju v poročilu ne uporabljamo. Kubite zanjo smo znova izbrali po objavljenih napakah tistega dne in pri tem izločili kubit 148 (razdelek~\ref{g20:sec:razprava}). Pri $N\le20$ so kubiti isti kot v prvi meritvi, pri večjih $N$ pa deloma drugi. Postopkov za zatiranje ali blaženje napak nismo uporabili in napak branja nismo popravljali, zato šteje odgovor, kot ga je procesor prebral. Prva meritev je porabila 21~s, druga pa 34~s procesorskega časa.
 
 \subsection{Metrike}
 \label{g20:sec:metrike}
 
 \begin{itemize}
-\item \textbf{Delež zmag} je delež ponovitev, v katerih odgovori izpolnijo pogoj~\eqref{g20:eq:igra}, povprečen po
-      8 vhodih.
-\item \textbf{Negotovost $\sigma$} je standardna napaka tega povprečja. Pove, za koliko bi se povprečje približno
-      spremenilo, če bi poskus ponovili. Izračunamo jo na dva načina in vzamemo večjo vrednost. Prvi način upošteva
-      razlike med 8 vhodi. Z njim dobimo $s/\sqrt{8}$, kjer je $s$ standardni odklon 8 deležev. Drugi način upošteva
-      končno število ponovitev, podobno kot pri metu kovanca. Z njim dobimo binomsko napako $\sqrt{p(1-p)/n}$, kjer je
-      $p$ delež zmag in $n$ skupno število ponovitev. Na procesorju je $n=8000$, v drugi meritvi pri $N=60$ in 75 pa $n=32\,000$.
-\item \textbf{Kriterij} za zmago nad klasično strategijo je, da je delež zmag, zmanjšan za $2\sigma$, še vedno nad mejo
-      $p_\text{klas}$~\eqref{g20:eq:meja}. Tako velik presežek bi po naključju dobili le redko. Klasična meja velja za
-      povprečje po vseh veljavnih vhodih. Naših 8 vhodov smo izbrali naključno in enakomerno med veljavnimi, zato je
-      povprečje po njih ocena povprečja po vseh vhodih. Pri $N=3$ smo uporabili vse štiri vhode, vsakega dvakrat. Na
-      procesorju se delež zmag med vhodi nekoliko razlikuje, te razlike pa zajema $\sigma$.
-\item \textbf{Vpliv šuma} merimo z razliko deleža zmag med idealnim simulatorjem, šumnim simulatorjem in procesorjem pri
-      istem $N$.
-\item \textbf{Napako branja kubita} $\varepsilon$ dobimo iz vezij za preverbo branja. To je povprečje deleža ponovitev, v
-      katerih smo kubit v stanju 0 prebrali kot 1, in deleža ponovitev, v katerih smo kubit v stanju 1 prebrali kot 0.
-      Povprečje vzamemo, ker je v igri vsak odgovor približno enako pogosto 0 kot 1.
-\item \textbf{Ocena vpliva branja} je delež zmag, ki bi ga dobili, če bi bile napake branja edina napaka. Igralci
-      izgubijo, če se obrne liho število prebranih bitov. Pri enem bitu je razlika med verjetnostjo, da se bit ne obrne,
-      in verjetnostjo, da se obrne, enaka $1-2\varepsilon$. Pri neodvisnih bitih se te razlike množijo, zato je
-      verjetnost sodega števila obratov enaka $\tfrac12+\tfrac12\prod_i(1-2\varepsilon_i)$. Napak vrat in čakanja ta
-      ocena ne zajame.
-\item \textbf{Lastnosti vezja} pred prevajanjem in po njem so število kubitov, globina, število dvokubitnih vrat in
-      trajanje. Globina je število zaporednih plasti vrat.
+\item \textbf{Delež zmag} pri danem $N$ izračunamo v dveh korakih. Za vsako od 8 vezij, torej za vsak vhod, izračunamo delež ponovitev, v katerih odgovori izpolnijo pogoj~\eqref{g20:eq:igra}. Nato vzamemo povprečje teh 8 deležev in dobimo povprečni delež zmag za dani $N$. Delež zmag na idealnem simulatorju označimo s $p_\text{ideal}$, na šumnem simulatorju s $p_\text{šum}$ in na procesorju ibm\_fez s $p_\text{ibm}$.
+\item \textbf{Negotovost $\sigma$} je standardna napaka tega povprečja. Pove, za koliko bi se povprečje približno spremenilo, če bi poskus ponovili. Deleže zmag zato pišemo v obliki $p\pm\sigma$. Negotovost izračunamo na dva načina in vzamemo večjo vrednost. Prvi način upošteva razlike med 8 vhodi. Z njim dobimo $s/\sqrt{8}$, kjer je $s$ standardni odklon 8 deležev. Drugi način upošteva končno število ponovitev, podobno kot pri metu kovanca. Z njim dobimo binomsko napako $\sqrt{p(1-p)/n}$, kjer je $p$ delež zmag in $n$ skupno število ponovitev. Na procesorju je $n=8000$, v drugi meritvi pri $N=60$ in 75 pa $n=32\,000$.
+\item \textbf{Kriterij} za zmago nad klasično strategijo je $p_\text{ibm}-2\sigma>p_\text{klas}$. Delež zmag na procesorju, zmanjšan za $2\sigma$, mora biti torej še vedno nad mejo $p_\text{klas}$~\eqref{g20:eq:meja}. Tako velik presežek bi po naključju dobili le redko. Klasična meja velja za povprečje po vseh veljavnih vhodih. Naših 8 vhodov smo izbrali naključno in enakomerno med veljavnimi, zato je povprečje po njih ocena povprečja po vseh vhodih. Na procesorju se delež zmag med vhodi nekoliko razlikuje, te razlike pa zajema $\sigma$.
+\item \textbf{Vpliv šuma} merimo z razliko deleža zmag med idealnim simulatorjem, šumnim simulatorjem in procesorjem pri istem $N$.
+\item \textbf{Lastnosti vezja} pred prevajanjem in po njem so število kubitov, globina, število dvokubitnih vrat in trajanje. Globina je število zaporednih plasti vrat.
 \end{itemize}
 
 
 \section{Rezultati}
 \label{g20:sec:rezultati}
 
-Tabela~\ref{g20:tab:igra} in slika~\ref{g20:fig:igra-rez} primerjata delež zmag na idealnem simulatorju, šumnem simulatorju
-in procesorju s klasično mejo~\eqref{g20:eq:meja}, tabela~\ref{g20:tab:igra2} pa obe meritvi na procesorju.
+Tabela~\ref{g20:tab:igra} in slika~\ref{g20:fig:igra-rez} primerjata delež zmag na idealnem simulatorju, šumnem simulatorju in procesorju s klasično mejo~\eqref{g20:eq:meja}, tabela~\ref{g20:tab:igra2} pa obe meritvi na procesorju.
 
 \begin{table}[htbp]
-\caption{Delež zmag na obeh simulatorjih in v prvi meritvi na ibm\_fez ter klasična meja~\eqref{g20:eq:meja}. Število
-v oklepaju je $\sigma$, zapis 0,949(3) torej pomeni $0{,}949\pm0{,}003$. Desni stolpci opisujejo vezje prve meritve, ki je
-bilo pri danem $N$ pred prevajanjem najgloblje. Vezje ima $N$ kubitov, število dvokubitnih vrat (2q) pa se s prevajanjem
-ne spremeni. Šumne simulacije za $N=60$ in 75 nimamo (razdelek~\ref{g20:sec:neuspehi}).}
+\caption{Klasična meja $p_\text{klas}$~\eqref{g20:eq:meja} ter delež zmag na idealnem simulatorju ($p_\text{ideal}$), na šumnem simulatorju ($p_\text{šum}$) in v prvi meritvi na ibm\_fez ($p_\text{ibm}$). Za znakom $\pm$ je standardna napaka $\sigma$. Stolpec izpolnjen kriterij pove, ali velja $p_\text{ibm}-2\sigma>p_\text{klas}$. Zadnji trije stolpci opisujejo vezje prve meritve, ki je bilo pri danem $N$ pred prevajanjem najgloblje, in sicer globino pred prevajanjem in po njem ter trajanje. Vezje ima $N$ kubitov in $N-1$ dvokubitnih vrat, pred prevajanjem in po njem. Simulacij za $N=60$ in 75 nimamo.}
 \label{g20:tab:igra}
 \centering
 \small
 \setlength{\tabcolsep}{5pt}
-\begin{tabular}{rrrrrcrrrr}
+\begin{tabular}{rrrrrcrrr}
 \toprule
-& klasična & \multicolumn{3}{c}{delež zmag} & kriterij & \multicolumn{2}{c}{globina} & & trajanje \\
-$N$ & meja & idealno & šumno & ibm\_fez & izpolnjen & pred & po & 2q & [$\mu$s] \\
+& & \multicolumn{3}{c}{delež zmag} & izpolnjen & \multicolumn{2}{c}{globina} & trajanje \\
+\cmidrule(lr){3-5}\cmidrule(lr){7-8}
+$N$ & $p_\text{klas}$ & $p_\text{ideal}$ & \multicolumn{1}{c}{$p_\text{šum}$} & \multicolumn{1}{c}{$p_\text{ibm}$} & kriterij & pred & po & [$\mu$s] \\
 \midrule
-3 & 0,7500 & 1,000 & 0,982(3) & 0,949(3) & da & 6 & 12 & 2 & 1,87 \\
-5 & 0,6250 & 1,000 & 0,956(5) & 0,931(5) & da & 7 & 15 & 4 & 1,94 \\
-10 & 0,5313 & 1,000 & 0,911(10) & 0,850(7) & da & 8 & 20 & 9 & 2,05 \\
-20 & 0,5010 & 1,000 & 0,812(9) & 0,715(5) & da & 11 & 27 & 19 & 2,28 \\
-30 & 0,5000 & 1,000 & 0,697(10) & 0,641(8) & da & 13 & 31 & 29 & 2,44 \\
-40 & 0,5000 & 1,000 & 0,654(17) & 0,548(6) & da & 13 & 34 & 39 & 2,46 \\
-50 & 0,5000 & 1,000 & 0,574(13) & 0,517(6) & da & 14 & 41 & 49 & 2,58 \\
-60 & 0,5000 & 1,000 & -- & 0,508(6) & ne & 16 & 40 & 59 & 2,69 \\
-75 & 0,5000 & 1,000 & -- & 0,502(6) & ne & 16 & 46 & 74 & 2,74 \\
+3 & 0,7500 & 1,000 & 0,982 $\pm$ 0,003 & 0,949 $\pm$ 0,003 & da & 6 & 12 & 1,87 \\
+5 & 0,6250 & 1,000 & 0,956 $\pm$ 0,005 & 0,931 $\pm$ 0,005 & da & 7 & 15 & 1,94 \\
+10 & 0,5313 & 1,000 & 0,911 $\pm$ 0,010 & 0,850 $\pm$ 0,007 & da & 8 & 20 & 2,05 \\
+20 & 0,5010 & 1,000 & 0,812 $\pm$ 0,009 & 0,715 $\pm$ 0,005 & da & 11 & 27 & 2,28 \\
+30 & 0,5000 & 1,000 & 0,697 $\pm$ 0,010 & 0,641 $\pm$ 0,008 & da & 13 & 31 & 2,44 \\
+40 & 0,5000 & 1,000 & 0,654 $\pm$ 0,017 & 0,548 $\pm$ 0,006 & da & 13 & 34 & 2,46 \\
+50 & 0,5000 & 1,000 & 0,574 $\pm$ 0,013 & 0,517 $\pm$ 0,006 & da & 14 & 41 & 2,58 \\
+60 & 0,5000 & -- & -- & 0,508 $\pm$ 0,006 & ne & 16 & 40 & 2,69 \\
+75 & 0,5000 & -- & -- & 0,502 $\pm$ 0,006 & ne & 16 & 46 & 2,74 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[htbp]
-\caption{Delež zmag v prvi (11.\,11.) in drugi meritvi (17.\,11.\,2026) na ibm\_fez ter izpolnjenost kriterija.
-Predzadnji stolpec je število ponovitev na vhod v drugi meritvi. Zadnji stolpec je ocena deleža zmag, ki bi ga dobili, če
-bi bile napake branja, izmerjene v drugi meritvi, edina napaka (razdelek~\ref{g20:sec:metrike}).}
+\caption{Delež zmag $p_\text{ibm}$ v prvi (11.\,11.) in drugi meritvi (17.\,11.\,2026) na ibm\_fez. Za znakom $\pm$ je standardna napaka $\sigma$. Stolpca kriterij povesta, ali velja $p_\text{ibm}-2\sigma>p_\text{klas}$. Zadnji stolpec je število ponovitev na vhod v drugi meritvi.}
 \label{g20:tab:igra2}
 \centering
 \small
-\begin{tabular}{rrcrcrr}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{rrcrcr}
 \toprule
-& \multicolumn{2}{c}{prva meritev} & \multicolumn{2}{c}{druga meritev} & ponovitev & samo napake \\
-$N$ & delež zmag & kriterij & delež zmag & kriterij & na vhod & branja \\
+& \multicolumn{2}{c}{prva meritev} & \multicolumn{2}{c}{druga meritev} & ponovitev \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+$N$ & \multicolumn{1}{c}{$p_\text{ibm}$} & kriterij & \multicolumn{1}{c}{$p_\text{ibm}$} & kriterij & na vhod \\
 \midrule
-3 & 0,949(3) & da & 0,962(2) & da & 1000 & 0,983 \\
-5 & 0,931(5) & da & 0,929(3) & da & 1000 & 0,949 \\
-10 & 0,850(7) & da & 0,883(4) & da & 1000 & 0,912 \\
-20 & 0,715(5) & da & 0,673(5) & da & 1000 & 0,749 \\
-30 & 0,641(8) & da & 0,624(7) & da & 1000 & 0,685 \\
-40 & 0,548(6) & da & 0,568(6) & da & 1000 & 0,648 \\
-50 & 0,517(6) & da & 0,508(11) & ne & 1000 & 0,573 \\
-60 & 0,508(6) & ne & 0,514(5) & da & 4000 & 0,538 \\
-75 & 0,502(6) & ne & 0,498(3) & ne & 4000 & 0,518 \\
+3 & 0,949 $\pm$ 0,003 & da & 0,962 $\pm$ 0,002 & da & 1000 \\
+5 & 0,931 $\pm$ 0,005 & da & 0,929 $\pm$ 0,003 & da & 1000 \\
+10 & 0,850 $\pm$ 0,007 & da & 0,883 $\pm$ 0,004 & da & 1000 \\
+20 & 0,715 $\pm$ 0,005 & da & 0,673 $\pm$ 0,005 & da & 1000 \\
+30 & 0,641 $\pm$ 0,008 & da & 0,624 $\pm$ 0,007 & da & 1000 \\
+40 & 0,548 $\pm$ 0,006 & da & 0,568 $\pm$ 0,006 & da & 1000 \\
+50 & 0,517 $\pm$ 0,006 & da & 0,508 $\pm$ 0,011 & ne & 1000 \\
+60 & 0,508 $\pm$ 0,006 & ne & 0,514 $\pm$ 0,005 & da & 4000 \\
+75 & 0,502 $\pm$ 0,006 & ne & 0,498 $\pm$ 0,003 & ne & 4000 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -336,148 +282,56 @@ $N$ & delež zmag & kriterij & delež zmag & kriterij & na vhod & branja \\
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]{ghz_igra}
-\caption{Delež zmag v igri GHZ v odvisnosti od števila igralcev $N$. Procesor ibm\_fez je v obeh meritvah nad klasično
-mejo do $N=40$. Navpične črtice označujejo interval $\pm2\sigma$.}
+\caption{Delež zmag v igri GHZ v odvisnosti od števila igralcev $N$. Procesor ibm\_fez je v obeh meritvah nad klasično mejo do $N=40$. Navpične črte označujejo interval $\pm2\sigma$.}
 \label{g20:fig:igra-rez}
 \end{figure}
 
-\textbf{Kvantna proti klasični strategiji.} Na idealnem simulatorju igralci vedno zmagajo. V prvi meritvi na procesorju
-ibm\_fez delež zmag z naraščajočim $N$ pada z 0,949 pri treh igralcih na 0,517 pri 50 igralcih in je v tem obsegu ves čas
-nad klasično mejo. Pri $N=50$ je razlika do meje 0,017, kar je približno tri standardne napake. Pri $N=60$ in 75 sta
-deleža zmag (0,508 in 0,502) od meje oddaljena manj kot dve standardni napaki, zato zmage nad klasično strategijo tam ne
-moremo potrditi. Z 8000 ponovitvami pri posameznem $N$ lahko zaznamo le presežek, večji od približno 0,011.
+\textbf{Kvantna proti klasični strategiji.} Na idealnem simulatorju igralci zmagajo pri vseh izbranih vhodih do $N=50$. V prvi meritvi na procesorju ibm\_fez delež zmag z naraščajočim $N$ pada z 0,949 pri treh igralcih na 0,517 pri 50 igralcih in je v tem obsegu ves čas nad klasično mejo. Pri $N=50$ je razlika do meje 0,017, kar je približno tri standardne napake. Pri $N=60$ in 75 sta deleža zmag (0,508 in 0,502) od meje oddaljena manj kot dve standardni napaki, zato zmage nad klasično strategijo tam ne moremo potrditi. Z 8000 ponovitvami pri posameznem $N$ lahko zaznamo le presežek, večji od približno 0,011.
 
-\textbf{Druga meritev.} Rezultati druge meritve (tabela~\ref{g20:tab:igra2}) so podobni rezultatom prve. Kriterij je izpolnjen do 40 igralcev
-in pri 60 igralcih, kjer smo uporabili štirikrat več ponovitev in je delež zmag (0,514) tri standardne
-napake nad mejo. Pri 50 igralcih (0,508) kriterij ni izpolnjen, ker je delež zmag nad mejo le za 0,008. To je manj kot dve
-standardni napaki, tudi če računamo z napako prve meritve (0,006). V drugi meritvi je bila standardna napaka pri tem $N$ še
-večja ($\sigma=0{,}011$), ker so se deleži zmag posameznih vhodov bolj razlikovali. Pri 75 igralcih (0,498) presežka ni.
-Kvantna strategija je torej najboljšo klasično premagala do 40 igralcev v obeh meritvah, pri 50 in 60 igralcih le v eni od
-obeh, pri 75 igralcih pa v nobeni.
+\textbf{Druga meritev.} Rezultati druge meritve (tabela~\ref{g20:tab:igra2}) so podobni rezultatom prve. Kriterij je izpolnjen do 40 igralcev in pri 60 igralcih, kjer smo uporabili štirikrat več ponovitev in je delež zmag (0,514) tri standardne napake nad mejo. Pri 50 igralcih (0,508) kriterij ni izpolnjen, ker je delež zmag nad mejo le za 0,008. To je manj kot dve standardni napaki, tudi če računamo z napako prve meritve (0,006). V drugi meritvi je bila standardna napaka pri tem $N$ še večja ($\sigma=0{,}011$), ker so se deleži zmag posameznih vhodov bolj razlikovali. Pri 75 igralcih (0,498) presežka ni.
 
-Deleža zmag obeh meritev se pri istem $N$ razlikujeta za največ 0,04. Pri $N\le20$ sta meritvi uporabili iste kubite in iste
-vhode. Pri $N=3$, 10 in 20 je razlika (0,01 do 0,04) približno štiri- do šestkrat večja od njene negotovosti, zato
-sklepamo, da se je procesor med dnevoma spremenil. Pri $N=50$ in 60 sta razliki med meritvama manjši od negotovosti.
+Deleža zmag obeh meritev se pri istem $N$ razlikujeta za največ 0,04. Pri $N\le20$ sta meritvi uporabili iste kubite in iste vhode. Pri $N=3$, 10 in 20 je razlika (0,01 do 0,04) približno štiri- do šestkrat večja od njene negotovosti, zato sklepamo, da se je procesor med dnevoma spremenil. Pri $N=50$ in 60 sta razliki med meritvama manjši od negotovosti.
 
-\textbf{Vpliv šuma.} Šum je v prvi meritvi znižal delež zmag z 1 na idealnem simulatorju na 0,949 že pri treh igralcih in
-na 0,715 pri dvajsetih. Šumni simulator je padec pokazal, vendar je bil pri vseh simuliranih $N$ od 3 do 50 bolj
-optimističen od procesorja. Njegov delež zmag je bil za 0,02 do 0,11 večji kot v prvi meritvi in za 0,02 do 0,14 večji kot
-v drugi. Primerjava je le groba, ker simulator uporablja posnetek napak s 26.\,2.\,2025 in deloma druge kubite kot
-procesor. Pri $N\le10$ simulator in prva meritev nimata nobenega skupnega kubita, pri $N=50$ pa je istih 26 od 50.
+\textbf{Vpliv šuma.} Šum je v prvi meritvi znižal delež zmag z 1 na idealnem simulatorju na 0,949 že pri treh igralcih in na 0,715 pri dvajsetih. Šumni simulator je padec pokazal, vendar je bil pri vseh simuliranih $N$ od 3 do 50 bolj optimističen od procesorja. Njegov delež zmag je bil za 0,02 do 0,11 večji kot v prvi meritvi in za 0,02 do 0,14 večji kot v drugi. Primerjava je le groba, ker simulator uporablja starejši posnetek napak in deloma druge kubite kot procesor. Pri $N\le10$ simulator in prva meritev nimata nobenega skupnega kubita, pri $N=50$ pa je istih 26 od 50. K padcu na procesorju prispevajo napake vrat, izguba stanja med čakanjem in napake branja, njihovih deležev pa nismo ločevali.
 
-\textbf{Napake branja.} Vezji za preverbo branja v drugi meritvi sta na 82 uporabljenih kubitih dali povprečno napako
-branja 0,020, objavljena povprečna napaka pa je bila 0,019. Deset kubitov je imelo napako nad 0,05. Največjo napako je imel
-kubit 83, in sicer 0,12. Po oceni iz razdelka~\ref{g20:sec:metrike} bi že same te napake znižale delež zmag na 0,912 pri
-desetih, 0,749 pri dvajsetih in 0,648 pri 40 igralcih (izmerjeno 0,883, 0,673 in 0,568). Pri 5 do 40 igralcih bi torej že
-same napake branja povzročile več kot polovico padca deleža zmag od idealne vrednosti 1. Preostanek padca pripisujemo
-predvsem napakam vrat in čakanju. Pri treh igralcih bi napake branja povzročile manj kot polovico padca. Pri 50 ali več
-igralcih je izmerjeni delež zmag preblizu $1/2$, da bi lahko padec razdelili po vzrokih.
+\textbf{Lastnosti vezij.} Globina vezja se s prevajanjem poveča dva- do trikrat, ker prevajalnik vrata CNOT in H zapiše z vrati, ki jih procesor izvaja neposredno. Tudi 75-kubitno vezje skupaj z meritvijo traja manj kot 3~$\mu$s.
 
-\textbf{Lastnosti vezij.} Vezje ima po prevajanju enako število dvokubitnih vrat kot pred njim, in sicer $N-1$, ker ga
-gradimo po povezavah čipa. Globina se poveča dva- do trikrat, ker prevajalnik vrata CNOT in H zapiše z osnovnimi vrati, ki
-jih procesor izvaja neposredno. V modelu FakeFez so to dvokubitna vrata CZ in enokubitna vrata RZ, SX in X. Tudi
-75-kubitno vezje skupaj z meritvijo traja manj kot 3~$\mu$s.
-
-\textbf{Primerjava z objavami.} Objavljeni preizkusi Merminovih neenakosti na procesorjih IBM, ki smo jih našli, obsegajo
-največ 7 kubitov. Prepletenost je bila v njih dobra do 4 kubitov, pri daljših verigah pa le pri nekaterih povezavah
-kubitov~\cite{g20:huang2020}. Na novejšem procesorju ibm\_fez je kvantna strategija v obeh naših meritvah presegla klasično
-mejo do 40 igralcev. Na Googlovem procesorju Willow so isto igro izvedli z največ 71 igralci~\cite{g20:kumar2025}.
-Primerjavi sta le okvirni, ker se razlikujejo procesorji, izbira kubitov in število ponovitev, starejši objavi pa
-merita Merminovo neenakost in ne deleža zmag.
+\textbf{Primerjava z objavami.} V objavljenih preizkusih Merminovih neenakosti na procesorjih IBM, ki obsegajo največ 7 kubitov, je bila prepletenost dobra do 4 kubitov, pri daljših verigah pa le pri nekaterih povezavah kubitov~\cite{g20:huang2020}. Na novejšem procesorju ibm\_fez je kvantna strategija v obeh naših meritvah presegla klasično mejo do 40 igralcev. Na Googlovem procesorju Willow so isto igro izvedli z največ 71 igralci~\cite{g20:kumar2025}. Primerjavi sta le okvirni, ker se razlikujejo procesorji, izbira kubitov in število ponovitev, starejši objavi pa merita Merminovo neenakost in ne deleža zmag.
 
 
 \section{Razprava}
 \label{g20:sec:razprava}
 
-\textbf{Odgovor na raziskovalno vprašanje.} Na procesorju ibm\_fez je kvantna strategija najboljšo klasično premagala do
-40 igralcev v obeh meritvah. Pri 50 igralcih je bil kriterij izpolnjen le v prvi meritvi, pri 60 igralcih le v drugi, pri
-75 igralcih pa v nobeni. Meja, do katere kvantna strategija premaga klasično, je torej med 40 in 60 igralci. Pri 50 in 60
-igralcih je bil delež zmag v obeh meritvah le malo nad $1/2$ (0,508 do 0,517). Razliki med meritvama sta pri teh dveh $N$
-manjši od negotovosti, zato je lahko različen izid kriterija naključen. Šum je delež zmag znižal z 1 na 0,95 do 0,96 pri
-treh in na 0,55 do 0,57 pri 40 igralcih. Rezultat velja za dve meritvi, za izbrane kubite in za 8 vhodov pri vsakem $N$. Med
-$N=40$ in 50 ter med 50 in 60 nismo merili.
+\textbf{Odgovor na raziskovalno vprašanje.} Na procesorju ibm\_fez je kvantna strategija najboljšo klasično premagala do 40 igralcev v obeh meritvah. Pri 50 igralcih je bil kriterij izpolnjen le v prvi meritvi, pri 60 igralcih le v drugi, pri 75 igralcih pa v nobeni. Meja, do katere kvantna strategija premaga klasično, je torej med 40 in 60 igralci. Pri 50 in 60 igralcih je bil delež zmag v obeh meritvah le malo nad $1/2$ (0,508 do 0,517). Razliki med meritvama sta pri teh dveh $N$ manjši od negotovosti, zato je lahko različen izid kriterija naključen. Šum je delež zmag znižal z 1 na 0,95 do 0,96 pri treh in na 0,55 do 0,57 pri 40 igralcih.
 
-\textbf{Zakaj šum zniža delež zmag.} Vsaka napaka, ki obrne izid enega kubita, obrne tudi pariteto odgovorov in s tem izid
-igre. Izid kubita obrne napaka branja, pa tudi napaka faze, ki lahko na primer med čakanjem nastane na
-kateremkoli kubitu pred zadnjimi vrati H. Vzemimo poenostavljen model, v katerem ima vsak od $N$ kubitov svojo, od drugih neodvisno verjetnost
-napake. Pri velikem $N$ je tedaj sodo število obratov skoraj enako verjetno kot liho, zato se delež zmag približa $1/2$.
-Ker se z naraščajočim $N$ tudi klasična meja približa $1/2$, za zmago nad njo zadošča že majhen ostanek prepletenosti.
-Izmerjene napake branja v drugi meritvi se s to razlago ujemajo, saj bi pri 5 do 40 igralcih že same napake branja povzročile več
-kot polovico padca (tabela~\ref{g20:tab:igra2}).
+\textbf{Zakaj šum zniža delež zmag.} Vsaka napaka, ki obrne izid enega kubita, obrne tudi pariteto odgovorov in s tem izid igre. Izid kubita obrne napaka branja, pa tudi napaka faze, ki lahko na primer med čakanjem nastane na kateremkoli kubitu pred zadnjimi vrati H. Vzemimo poenostavljen model, v katerem ima vsak od $N$ kubitov svojo, od drugih neodvisno verjetnost napake. Pri velikem $N$ je tedaj sodo število obratov skoraj enako verjetno kot liho, zato se delež zmag približa $1/2$. Ker se z naraščajočim $N$ tudi klasična meja približa $1/2$, za zmago nad njo zadošča že majhen ostanek prepletenosti.
 
-\textbf{Kaj zmaga pokaže in česa ne.} Zmaga nad klasično mejo pokaže, da so bili kubiti med igro prepleteni. Ne pokaže pa,
-da je bilo prepletenih vseh $N$ kubitov hkrati. Sklep sloni na pomembni predpostavki. Vsi igralci so kubiti istega čipa in
-vsa vezja izvede en računalnik, zato igralci niso zares ločeni. Tudi idealni simulator, ki je navaden klasičen program,
-vedno zmaga, ker pozna vse vhode hkrati. Naš rezultat zato ne pomeni, da je procesor naredil nekaj, česar klasični
-računalnik ne zmore. Pomeni, da se kubiti procesorja kljub šumu obnašajo kot prepleteno stanje, če zaupamo, da je izid
-vsakega kubita odvisen le od bita njegovega igralca in od skupnega stanja.
+\textbf{Kaj zmaga pokaže in česa ne.} Brez prepletenosti nobena strategija klasične meje ne preseže, zato zmaga nad njo pokaže, da so bili kubiti procesorja med igro kljub šumu prepleteni. Pravila igre so pri tem spoštovana. Po pripravi stanja GHZ vsak igralec izvede le enokubitna vrata na svojem kubitu in ga izmeri, med kubiti pa ni več nobenih vrat. Prepletenost sama ni komunikacija, saj igralec iz izida svojega kubita ne izve ničesar o bitih drugih igralcev. Zmaga pa ne pokaže, da je bilo prepletenih vseh $N$ kubitov hkrati. Ker so igralci kubiti istega čipa in niso prostorsko ločeni, poskus tudi ni strog preizkus nelokalnosti, temveč preizkus, ali se prepletenost na procesorju kljub šumu ohrani.
 
-\textbf{Ali se je pričakovanje potrdilo?} Delno. Delež zmag z naraščajočim $N$ pada proti $1/2$, kot smo pričakovali.
-Šumna simulacija je napovedala zmago nad klasično mejo do 50 igralcev, kolikor smo jih simulirali. Procesor je to dosegel
-do 40 igralcev v obeh meritvah, pri 50 igralcih pa le v eni. Simulator je bil pri vseh $N$ preveč optimističen. Vzroka za
-to razliko nismo mogli določiti. Možni vzroki so trije. Prvič, simulator uporablja starejši posnetek napak. Drugič,
-uporablja deloma druge kubite. Tretjič, njegov šumni model zajame le napake vrat, izgubo stanja med čakanjem in napake
-branja, ne pa na primer vpliva sosednjih kubitov drug na drugega in sprememb kubitov med dnevi.
+\textbf{Ali se je pričakovanje potrdilo?} Delno. Delež zmag z naraščajočim $N$ pada proti $1/2$ in procesor klasično strategijo premaga še pri več deset igralcih, kot smo pričakovali. Šumna simulacija pa je napovedala zmago do 50 igralcev, medtem ko jo je procesor v obeh meritvah dosegel le do 40. Vzroka za to razliko nismo mogli določiti. Poleg starejšega posnetka napak in deloma drugih kubitov je možen vzrok tudi to, da šumni model ne zajame na primer vpliva sosednjih kubitov drug na drugega in sprememb kubitov med dnevi.
 
-\textbf{Kaj rezultat pomeni za programiranje kvantnih računalnikov.} V našem poskusu so šumni simulator in objavljeni
-podatki o napakah pravilno pokazali potek, ne pa tudi točnih vrednosti. Zato predlagamo, da program, ki deluje na
-simulatorju, preverimo še na procesorju in da napake izbranih kubitov izmerimo sproti. Prav tako ena sama meritev ni dovolj, saj sta
-se deleža zmag obeh meritev pri nekaterih $N$ razlikovala bolj, kot kaže statistična negotovost ene meritve.
-
-\textbf{Omejitve.} Na procesorju smo izvedli le dve meritvi, na dva različna dneva. Med njima se je delež zmag pri istem
-$N$ spremenil za največ 0,04. Vsak $N$ uporablja svoj nabor kubitov, večji nabori pa vsebujejo tudi slabše kubite.
-Povprečna objavljena napaka branja izbranih kubitov v prvi meritvi naraste z 0,004 pri $N=3$ na 0,023 pri $N=75$. Padec
-deleža zmag z naraščajočim $N$ zato ni posledica le števila igralcev. Za vsak $N$ smo uporabili le 8 od mnogih možnih
-vhodov. Prva meritev ni imela vezij za preverbo branja. Ocena vpliva branja predpostavlja, da so napake branja različnih
-kubitov neodvisne. Šumno simulacijo imamo le do $N=50$.
+\textbf{Omejitve.} Na procesorju smo izvedli le dve meritvi, na dva različna dneva. Vsak $N$ uporablja svoj nabor kubitov, večji nabori pa vsebujejo tudi slabše kubite. Povprečna objavljena napaka branja izbranih kubitov v prvi meritvi naraste z 0,004 pri $N=3$ na 0,023 pri $N=75$. Padec deleža zmag z naraščajočim $N$ zato ni posledica le števila igralcev. Naš postopek izbire poleg tega ne izloči posameznih slabih kubitov. V prvi meritvi je pri $N=75$ vključil kubit 148 z objavljeno napako branja 0,19, ki je dal izid 1 le v 33~\% ponovitev namesto v polovici, zato smo ga v drugi meritvi izločili. Za vsak $N$ smo uporabili le 8 od mnogih možnih vhodov. Postopkov za zatiranje napak na procesorju nismo uporabili, zato ne vemo, ali bi z njimi klasično strategijo premagali pri več igralcih. Med 40 in 50 ter med 50 in 60 igralci nismo merili.
 
 \subsection{Kaj ni delovalo}
 \label{g20:sec:neuspehi}
 
-\textbf{Šumna simulacija pri velikih $N$.} Simulacija s šumnim modelom pri $N=60$ se na prenosnem računalniku po več kot eni uri
-računanja še ni končala, zato smo jo ustavili. Za $N=60$ in 75 tako nimamo napovedi simulatorja, prav pri teh
-velikostih pa je izid na procesorju najbolj negotov.
-
-\textbf{Simulacija s polnim šumnim modelom je obtičala.} Pri prvih preizkusih s šumnim modelom FakeMontrealV2, ki
-opisuje starejši 27-kubitni procesor IBM, se simulacija ni končala in ni izpisala nobene napake. Pomagala sta preprostejši
-zapis napak dvokubitnih vrat in dodajanje napak branja po simulaciji. Oboje smo nato uporabili tudi pri modelu FakeFez
-(razdelek~\ref{g20:sec:poskusi}).
-
-\textbf{Izbira kubitov iz objavljenih napak.} Kubite smo izbrali po objavljenih napakah, podatki prve meritve pa kažejo, da
-to ni dovolj. V idealnem primeru so po vratih H vsi nizi odgovorov s pravo pariteto enako verjetni
-(razdelek~\ref{g20:sec:igra}), zato bi moral vsak kubit dati izid 1 v polovici ponovitev. Delež enic je bil pri vseh
-kubitih med 0,46 in 0,51, razen pri kubitu 148 pri $N=75$, ki je dal izid 1 le v 33~\% ponovitev. V drugi meritvi smo zato
-kubit 148 izločili in napake branja izmerili. Objavljene napake branja so bile v povprečju točne, pri posameznih kubitih
-pa so odstopale. Kubit 126 je imel objavljeno napako 0,040, izmerjeno pa 0,087, ker je procesor njegovo stanje 1 v 15~\%
-ponovitev prebral kot 0. Postopek izbire je v drugi meritvi vključil tudi dva kubita z objavljeno napako branja nad 0,1.
-Kubit 113 smo uporabili pri 50, 60 in 75 igralcih, kubit 83 pa le pri 75 igralcih. Za prihodnje poskuse predlagamo, da
-napake branja izmerimo vnaprej, kubite izberemo po izmerjenih vrednostih in najslabše kubite izločimo.
-
+\textbf{Simulacija s polnim šumnim modelom.} Šumni simulator smo najprej zagnali s polnim šumnim modelom. Pri prvih preizkusih z modelom FakeMontrealV2, ki opisuje starejši 27-kubitni procesor IBM, se simulacija ni končala in ni izpisala nobene napake. Po našem mnenju metoda MPS v uporabljeni različici simulatorja ne zmore polnega zapisa napak dvokubitnih vrat skupaj z napakami branja. Zato smo napake dvokubitnih vrat zapisali preprosteje, napake branja pa dodali šele po simulaciji. Polni model napako vrat CZ sestavi iz naključne napake vrat in izgube stanja med vrati ter jo zapiše z naborom matrik (Krausovi operatorji), ki niso navadna vrata. Nadomestili smo jo z naključno izbiro: po vsakih vratih CZ se z veliko verjetnostjo ne zgodi nič, sicer pa ena od 15 kombinacij napak X, Y in Z na enem ali obeh kubitih, pri čemer smo verjetnosti izračunali iz prvotnega opisa, tako da je povprečna napaka vrat ostala enaka (Paulijev približek). S tem izgubimo le to, da kubit med vrati pogosteje preide iz 1 v 0 kot obratno, kar je majhen učinek, ker vrata trajajo mnogo manj časa, kot kubit ohranja stanje. Tako popravljen simulator smo uporabili tudi z modelom FakeFez (razdelek~\ref{g20:sec:orodja}) in je deloval do $N=50$. Pri $N=60$ se simulacija po več kot eni uri računanja še ni končala, zato smo jo ustavili in za $N=60$ in 75 napovedi simulatorja nimamo.
 
 
 \section{Zaključek}
 \label{g20:sec:zakljucek}
 
-Na procesorju ibm\_fez smo z dvema meritvama (72 in 122 vezij, 21 in 34~s procesorskega časa) odigrali igro GHZ s 3 do 75
-igralci. Kvantna strategija je najboljšo klasično premagala do 40 igralcev v obeh meritvah, pri 50 in 60 igralcih le v
-eni od obeh, pri 75 igralcih pa v nobeni. Delež zmag z naraščajočim $N$ pada proti $1/2$. Pri 5 do 40 igralcih bi več kot
-polovico padca povzročile že same izmerjene napake branja. Šumni simulator je potek pokazal pravilno, vendar je bil pri
-vseh simuliranih $N$ preveč optimističen. Rezultat velja za dve meritvi in za izbrane kubite. Za nadaljnje delo predlagamo,
-da kubite izberemo po izmerjenih napakah branja, da pri $N=50$ in 60 uporabimo več vezij, in sicer več vhodov in več kopij
-vsakega vezja, ter da izvedemo meritve med 40 in 60 igralci.
+Na procesorju ibm\_fez smo z dvema meritvama (72 in 122 vezij, 21 in 34~s procesorskega časa) odigrali igro GHZ s 3 do 75 igralci. Kvantna strategija je najboljšo klasično premagala do 40 igralcev v obeh meritvah, pri 50 in 60 igralcih le v eni od obeh, pri 75 igralcih pa v nobeni. Delež zmag z naraščajočim $N$ pada proti $1/2$. Šumni simulator je potek pokazal pravilno, vendar je bil pri vseh simuliranih $N$ preveč optimističen. Za nadaljnje delo predlagamo, da pri izbiri izločimo kubite z veliko objavljeno napako branja, da pri $N=50$ in 60 uporabimo več vhodov in več kopij vsakega vezja ter da merimo tudi med 40 in 60 igralci.
 
 
 \section*{Doprinosi avtorjev}
 
-\noindent\textbf{Erik Radovičevič} je sodeloval pri skoraj vseh delih seminarja, in sicer pri zasnovi poskusa in vezij igre,
-simulacijah, zagonu na procesorju ibm\_fez, analizi rezultatov in pregledu literature. V poročilu je soavtor vseh poglavij.
+\noindent\textbf{Erik Radovičevič} je postavil repozitorij in ogrodje poglavja ter napisal kodo za izbiro kubitov, pripravo stanja GHZ na čipu in zagon na procesorju ibm\_fez. Izvedel je obe meritvi na procesorju. V poročilu je pripravil prvo različico besedila o igri in rezultatih ter prosojnice.
 
-\noindent\textbf{Dominik Krašovec} je prav tako sodeloval pri skoraj vseh delih seminarja, in sicer pri klasični rešitvi in zasnovi
-vezij, simulacijah, analizi rezultatov, pregledu literature in pripravi repozitorija. V poročilu je soavtor vseh poglavij.
+\noindent\textbf{Dominik Krašovec} je napisal kodo za pravila in vezje igre, klasično mejo in obe simulaciji, izvedel šumne simulacije (razdelek~\ref{g20:sec:neuspehi}) ter pripravil graf deleža zmag. Dodal je ponovitve vezij pri velikih $N$. V poročilu je pripravil končno besedilo, vire in navodila za ponovitev rezultatov.
 
 \noindent Vsak del je pripravil eden od naju, drugi pa ga je pregledal in preveril.
 
 \section*{Izjava o uporabi generativne umetne inteligence}
 
-Pri razvoju smo si pomagali z orodjem generativne umetne inteligence Claude, in sicer pri iskanju informacij, razlagi konceptov, pisanju kode, % hooks:allow
-pripravi in analizi poskusov ter pisanju in urejanju besedila poročila.
+Pri razvoju sva si pomagala z orodjem generativne umetne inteligence Claude, in sicer pri iskanju informacij, razlagi konceptov, pisanju kode, pripravi in analizi poskusov ter pisanju in urejanju besedila poročila.

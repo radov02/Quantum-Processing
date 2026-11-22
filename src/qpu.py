@@ -1,25 +1,19 @@
-"""Igra GHZ na pravem procesorju IBM (privzeto ibm_fez) s strogim nadzorom porabe procesorskega časa.
+"""Igra GHZ na procesorju IBM (privzeto ibm_fez) z omejitvijo porabe procesorskega časa.
 
-En posel vsebuje za vsak N iz --n K veljavnih vhodov (--k, seme vhodov --seme + N), vsak vhod je eno vezje: priprava
-GHZ na drevesu (src/ghz.py), nato poteza igralcev (src/igra.py). Delež zmag poročamo brez ublažitve branja (igralci
-dobijo, kar preberejo). Vsako vezje dobi --shots posnetkov; z `--kopije-od N0 R` je vsako vezje z N >= N0 v poslu
-R-krat (analiza izide kopij sešteje), tako da večji N dobijo več posnetkov brez različnih nastavitev v istem poslu.
-Z `--kalibracija` posel dobi še dve vezji za preverbo branja (vsi izbrani kubiti v stanju 0 in vsi v stanju 1); z
-njima le izmerimo napako branja vsakega kubita, deleža zmag ne popravljamo.
+Posel ima za vsak N iz --n K veljavnih vhodov (--k, seme vhodov --seme + N); vsak vhod je eno vezje z --shots posnetki.
+Z `--kopije-od N0 R` je vsako vezje z N >= N0 v poslu R-krat, analiza izide kopij sešteje. Napake branja se ne
+popravljajo.
 
-Ukazi (nič se ne pošlje brez `poslji`; `poslji` brez --max-sekund se ne izvede):
-  nacrt     zgradi in prevede vezja, izpiše tabelo, oceno časa in preostanek na instanci
-  poslji    isto + oddaja (en posel na ukaz). Posel dobi max_execution_time (faktor x ocena + 3 s), ki ga pred oddajo
-            rezervira v meji --max-sekund tega ukaza; rezervacija se sprosti šele po obračunu. Ukaz zavrne oddajo,
-            dokler kateri od prejšnjih poslov ni obračunan, zato naj bo --max-sekund dogovorjena meja minus že
-            porabljeni čas.
-  prevzemi  izide in obračun že oddanih poslov (če je bilo čakanje prekinjeno)
+Ukazi:
+  nacrt     zgradi in prevede vezja, izpiše lastnosti, oceno časa in preostanek na instanci; ne odda ničesar
+  poslji    odda en posel; obvezna je meja --max-sekund. Posel dobi max_execution_time (faktor x ocena + 3 s), ki se
+            rezervira v meji in sprosti po obračunu. Dokler kateri od prejšnjih poslov ni obračunan, oddaje ni.
+  prevzemi  izidi in obračun že oddanih poslov (po prekinjenem čakanju)
   analiza   delež zmag po N iz rezultati/qpu/<ime>.json -> rezultati/qpu/<ime>_analiza.json
 
-Žeton in instanca: spremenljivki QISKIT_IBM_TOKEN in QISKIT_IBM_INSTANCE morata biti v okolju (skripta datoteke .env ne
-bere), npr.
+Spremenljivki QISKIT_IBM_TOKEN in QISKIT_IBM_INSTANCE morata biti v okolju (datoteka .env se ne bere), npr.
   .venv/bin/python src/qpu.py nacrt --ime igra --k 8 --n 3 5 10 20 30 40 50 60 75
-Lokalni preizkus celotne poti brez procesorja: --fake (FakeFez in šumni simulator).
+Z --fake teče vse lokalno (FakeFez in šumni simulator).
 """
 
 from __future__ import annotations
@@ -33,16 +27,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from qiskit import QuantumCircuit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import ghz  # noqa: E402
-import igra  # noqa: E402
-from ibm_skupno import (KOREN, beri_dnevnik, dodaj_v_dnevnik, dopolni_zapis, povezi, st_dvokubitnih,  # noqa: E402
+import ghz
+import igra
+from ibm_skupno import (KOREN, beri_dnevnik, dodaj_v_dnevnik, dopolni_zapis, povezi, st_dvokubitnih,
                         stetja_iz_rezultata)
 
-# model porabe: fiksni čas na posel + čas na posnetek. Oba zagona igre sta uporabila --model-posnetek-ms 0.284: ocena
-# 22,5 s in 36,7 s, obračunano 21 s in 34 s (72 in 122 vezij x 1000 posnetkov, rezultati/naloge.jsonl).
+# ocena porabe: CAS_POSEL_S na posel + CAS_POSNETEK_S na posnetek; oba zagona igre sta uporabila
+# --model-posnetek-ms 0.284 (ocena 22,5 s in 36,7 s, obračunano 21 s in 34 s)
 CAS_POSEL_S = 2.0
 CAS_POSNETEK_S = 0.35e-3
 OZNAKA = "skupina20"
@@ -50,19 +43,19 @@ IZHOD = KOREN / "rezultati" / "qpu"
 
 
 def ocena_casa(st_poslov, posnetkov):
-    """Model porabe: fiksni del na posel + čas na posnetek (posnetkov = vsota posnetkov vseh vezij)."""
+    """Ocena porabe [s]; posnetkov je vsota posnetkov vseh vezij."""
     return CAS_POSEL_S * st_poslov + CAS_POSNETEK_S * posnetkov
 
 
 def povezava(ime, fake):
-    """(service, backend, poraba). Pri --fake brez omrežja in brez žetona."""
+    """(service, backend, poraba); z --fake brez omrežja in žetona."""
     if fake:
         from qiskit_ibm_runtime.fake_provider import FakeFez
         return None, FakeFez(), {}
     service = povezi()
     try:
         poraba = service.usage()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         sys.exit(f"Porabe instance ni bilo mogoče prebrati ({e}); brez nje ne nadaljujem.")
     return service, service.backend(ime), poraba
 
@@ -72,33 +65,11 @@ def merjeni_kubiti(qc):
     return {qc.find_bit(i.clbits[0]).index: qc.find_bit(i.qubits[0]).index for i in qc.data if i.operation.name == "measure"}
 
 
-def kalibracijski_vezji(backend, kubiti):
-    """Dve vezji za preverbo branja na podanih kubitih čipa: vsi v stanju 0 (brez vrat) in vsi v stanju 1 (vrata X),
-    nato meritev. Preveri, da vezji nimata dvokubitnih vrat in merita podane kubite."""
-    n = len(kubiti)
-    nic, ena = QuantumCircuit(n, name="kal_0"), QuantumCircuit(n, name="kal_1")
-    ena.x(range(n))
-    for qc in (nic, ena):
-        qc.measure_all()
-    isa = ghz.prevedi([nic, ena], backend, kubiti)
-    for qc, z_vrati in zip(isa, (set(), set(kubiti))):
-        if st_dvokubitnih(qc) != 0:
-            raise RuntimeError(f"{qc.name}: kalibracijsko vezje ima dvokubitna vrata")
-        if merjeni_kubiti(qc) != dict(enumerate(kubiti)):
-            raise RuntimeError(f"{qc.name}: meritve niso na izbranih kubitih")
-        z_x = {qc.find_bit(q).index for i in qc.data if i.operation.name not in ("barrier", "delay", "measure")
-               for q in i.qubits}
-        if z_x != z_vrati:
-            raise RuntimeError(f"{qc.name}: vrata niso na pričakovanih kubitih (kal_0 brez vrat, kal_1 X na vseh)")
-    return isa
+def zgradi_posel_igre(backend, ns, k, seme, kopije_od=None):
+    """Vezja enega posla: za vsak N k veljavnih vhodov (seme + N). Z `kopije_od = (N0, R)` je vsako vezje z N >= N0 v
+    poslu R-krat zapored.
 
-
-def zgradi_posel_igre(backend, ns, k, seme, kalibracija=False, kopije_od=None):
-    """Vezja enega posla za igro GHZ na drevesu: za vsak N k veljavnih vhodov (seme + N); s `kalibracija` na koncu še
-    dve vezji za preverbo branja na vseh kubitih, ki jih posel uporablja. Z `kopije_od = (N0, R)` je vsako vezje z
-    N >= N0 v poslu R-krat zapored (kopije istega vhoda so skupaj).
-
-    Pred oddajo preveri, da ima vsako prevedeno vezje N - 1 dvokubitnih vrat in da meri izbrane kubite."""
+    Vsako prevedeno vezje mora imeti N - 1 dvokubitnih vrat in meriti izbrane kubite."""
     poskusi, vezja = [], []
     for n in ns:
         z = ghz.zasnova_za(backend, n)
@@ -112,7 +83,7 @@ def zgradi_posel_igre(backend, ns, k, seme, kalibracija=False, kopije_od=None):
                 raise RuntimeError(f"{qc.name}: meritve niso na izbranih kubitih")
         j = igra.najglobje(logicna)
         kopij = kopije_od[1] if kopije_od and n >= kopije_od[0] else 1
-        if kopij > 1:  # kopije istega vhoda zapored: vezje j, kopija c je na mestu zacetek + j * kopij + c
+        if kopij > 1:  # vezje j, kopija c je na mestu zacetek + j * kopij + c
             isa_vsa = [qc.copy(name=f"{qc.name}_p{c}") for qc in isa for c in range(kopij)]
         else:
             isa_vsa = isa
@@ -121,20 +92,11 @@ def zgradi_posel_igre(backend, ns, k, seme, kalibracija=False, kopije_od=None):
                         "lastnosti_pred": ghz.lastnosti(logicna[j]),
                         "lastnosti_po": ghz.lastnosti(isa[j], backend.target)})
         vezja += isa_vsa
-    opis = {"poskusi": poskusi}
-    if kalibracija:
-        kubiti = sorted({q for p in poskusi for q in p["postavitev"]})
-        isa = kalibracijski_vezji(backend, kubiti)
-        # objavljena napaka branja istih kubitov ob oddaji, za primerjavo z izmerjeno
-        objavljena = [getattr(backend.target["measure"].get((q,)), "error", None) for q in kubiti]
-        opis["kalibracija"] = {"kubiti": kubiti, "zacetek": len(vezja), "st_vezij": len(isa),
-                               "objavljena_napaka": objavljena}
-        vezja += isa
-    return opis, vezja
+    return {"poskusi": poskusi}, vezja
 
 
 def posnetkov_posla(vezja, a):
-    """Vsota posnetkov vseh vezij posla (iz nje sledi ocena porabe): vsa vezja imajo a.shots posnetkov."""
+    """Vsota posnetkov vseh vezij posla."""
     return len(vezja) * a.shots
 
 
@@ -147,9 +109,6 @@ def izpisi_nacrt(posli, a, poraba):
             kopije = f" ({p['kopij']} kopije vsakega vhoda)" if p.get("kopij", 1) > 1 else ""
             print(f"{p['n']:>4}  {lp['globina']:>8} {lp['dvokubitna']:>4} {(lp['trajanje_us'] or 0):>8.2f}us "
                   f" {p['st_vezij']:>3} x {a.shots}{kopije}")
-        kal = opis.get("kalibracija")
-        if kal:
-            print(f" kal  preverba branja na {len(kal['kubiti'])} kubitih: {kal['st_vezij']} x {a.shots}")
         posnetkov += posnetkov_posla(vezja, a)
     st_vezij = sum(len(v) for _, v in posli)
     ocena = ocena_casa(len(posli), posnetkov)
@@ -161,8 +120,7 @@ def izpisi_nacrt(posli, a, poraba):
 
 
 def shrani(ime, podatki):
-    """Zapiše rezultati/qpu/<ime>.json najprej v začasno datoteko in jo nato preimenuje, zato izpad elektrike med
-    pisanjem ne pusti napol zapisanega zapisa posla."""
+    """Zapiše rezultati/qpu/<ime>.json prek začasne datoteke, da prekinjeno pisanje ne pokvari zapisa."""
     IZHOD.mkdir(parents=True, exist_ok=True)
     pot = IZHOD / f"{ime}.json"
     zacasna = pot.with_suffix(".tmp")
@@ -172,12 +130,9 @@ def shrani(ime, podatki):
 
 
 def shrani_analizo(ime, podatki):
-    """Delež zmag po N (in napake branja, če ima posel kalibracijski vezji) -> rezultati/qpu/<ime>_analiza.json."""
+    """Delež zmag po N -> rezultati/qpu/<ime>_analiza.json."""
     analiza = {"ime": ime, "backend": podatki["backend"], "shots": podatki["shots"],
                "rezultati": igra.analiza_qpu(podatki)}
-    branje = igra.analiza_branja(podatki)
-    if branje:
-        analiza["branje"] = branje
     return shrani(f"{ime}_analiza", analiza)
 
 
@@ -189,7 +144,7 @@ def beri(ime):
 
 
 def omejitev_posla(a, ocena_posla):
-    """Najdaljši dovoljeni čas posla (max_execution_time): faktor x ocena + 3 s. Tolikšen del meje posel rezervira."""
+    """max_execution_time posla: faktor x ocena + 3 s."""
     c = int(math.ceil(a.faktor_omejitve * ocena_posla + 3))
     if c < max(1, ocena_posla):
         sys.exit(f"Omejitev posla {c} s je manjša od ocene {ocena_posla:.1f} s: preveri --faktor-omejitve in model.")
@@ -197,27 +152,28 @@ def omejitev_posla(a, ocena_posla):
 
 
 def ocena_ibm(service, job_id, cakaj_s=90, korak_s=5):
-    """IBM-ova ocena trajanja posla (quantum_seconds); vsakič nov objekt posla, ker se prva prazna ocena ne osveži."""
+    """IBM-ova ocena trajanja posla (quantum_seconds) ali None."""
     konec = time.time() + cakaj_s
     while time.time() < konec:
         try:
+            # nov objekt posla, ker se prazna ocena v obstoječem ne osveži
             q = service.job(job_id).usage_estimation.get("quantum_seconds")
             if q is not None:
                 return float(q)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         time.sleep(korak_s)
     return None
 
 
 def dejanska_poraba(job, cakaj_s=240, korak_s=10):
-    """Obračunani čas posla. Takoj po koncu je obračun še "pending" in job.usage() vrne 0, zato počakamo."""
+    """Obračunani čas posla ali None. Dokler je obračun "pending", job.usage() vrne 0."""
     konec = time.time() + cakaj_s
     while time.time() < konec:
         try:
             if job.metrics().get("usage", {}).get("status", "pending") != "pending":
                 return float(job.usage())
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         time.sleep(korak_s)
     return None
@@ -226,9 +182,8 @@ def dejanska_poraba(job, cakaj_s=240, korak_s=10):
 def poslji(a, service, backend, poraba, posli):
     """Zaporedna oddaja poslov znotraj meje a.max_sekund.
 
-    Pravilo rezervacije: pred oddajo posel rezervira svojo celotno omejitev (max_execution_time), vsota rezervacij
-    nikoli ne preseže meje. Neporabljeni del se sprosti šele, ko je dejanska poraba obračunana; če obračuna ni,
-    ostane rezervirana cela omejitev. Tako skupna poraba ne more preseči meje, ne glede na oceno."""
+    Posel pred oddajo rezervira svoj max_execution_time; vsota rezervacij ne preseže meje. Neporabljeni del se sprosti
+    po obračunu; brez obračuna ostane rezervirana cela omejitev."""
     if not a.max_sekund:
         sys.exit("Za oddajo je obvezna meja --max-sekund (dogovorjeni skupni procesorski čas).")
     if not a.fake:
@@ -249,7 +204,7 @@ def poslji(a, service, backend, poraba, posli):
     if a.max_poslov and len(posli) > a.max_poslov:
         sys.exit(f"Načrt ima {len(posli)} poslov, odobrenih je {a.max_poslov}: nič ni poslano.")
 
-    if not a.fake:  # zapis mora biti mogoč, preden karkoli plačamo (disk samo za branje ali poln)
+    if not a.fake:  # pred oddajo mora biti v mapo z zapisi mogoče pisati
         poskusna = IZHOD / f"{a.ime}.zapis-test"
         try:
             IZHOD.mkdir(parents=True, exist_ok=True)
@@ -264,7 +219,7 @@ def poslji(a, service, backend, poraba, posli):
                "model_posnetek_ms": CAS_POSNETEK_S * 1e3, "faktor_omejitve": a.faktor_omejitve, "posli": []}
     rezervirano = 0.0
     for opis, vezja in posli:
-        pricakovanih = sum(p["st_vezij"] for p in opis["poskusi"]) + (opis.get("kalibracija") or {}).get("st_vezij", 0)
+        pricakovanih = sum(p["st_vezij"] for p in opis["poskusi"])
         if pricakovanih != len(vezja):
             sys.exit(f"Posel ima {len(vezja)} vezij, opis pa jih navaja {pricakovanih}: nič ni poslano.")
         ocena_posla = ocena_casa(1, posnetkov_posla(vezja, a))
@@ -289,8 +244,8 @@ def poslji(a, service, backend, poraba, posli):
         rezervirano += omejitev
         job = Sampler(mode=backend, options=moznosti).run(vezja, shots=a.shots)
         zapis["job_id"] = job.job_id()
-        print(f"oddan posel {job.job_id()}", flush=True)  # ID najprej na zaslon, če bi zapis na disk spodletel
-        # takoj zapišemo job ID (dnevnik in datoteka), šele nato karkoli drugega
+        print(f"oddan posel {job.job_id()}", flush=True)
+        # job ID gre v dnevnik in datoteko pred čakanjem na izide
         dodaj_v_dnevnik({"cas": zapis["cas_oddaje"], "job_id": job.job_id(), "backend": backend.name, "fake": False,
                          "shots": a.shots, "posnetkov": posnetkov_posla(vezja, a), "ime_poskusa": a.ime,
                          "max_sekund": omejitev,
@@ -309,7 +264,7 @@ def poslji(a, service, backend, poraba, posli):
             sys.exit(f"Ocena IBM {zapis['ocena_ibm_s']} s presega omejitev {omejitev} s: posel preklican, ustavljeno.")
         try:
             rezultat = job.result()
-        except Exception as e:  # noqa: BLE001  (neuspel ali preklican posel: omejitev ostane rezervirana)
+        except Exception as e:  # neuspel ali preklican posel: omejitev ostane rezervirana
             zapis["stanje"] = f"NAPAKA: {e}"
             shrani(a.ime, podatki)
             sys.exit(f"Posel {job.job_id()} ni uspel ({e}); ustavljeno, nič več ni poslano.")
@@ -318,7 +273,7 @@ def poslji(a, service, backend, poraba, posli):
         zapis["poraba_s"] = dejanska_poraba(job)
         if zapis["poraba_s"] is not None:
             dopolni_zapis(job.job_id(), zapis["poraba_s"])
-            rezervirano += zapis["poraba_s"] - omejitev  # tudi poraba nad omejitvijo se šteje
+            rezervirano += zapis["poraba_s"] - omejitev  # šteje tudi poraba nad omejitvijo
         print(f"  končano: obračunano {zapis['poraba_s']} s (ocena {ocena_posla:.1f} s, IBM {zapis['ocena_ibm_s']} s); "
               f"rezervirano {rezervirano:.0f} s od {a.max_sekund} s", flush=True)
         shrani(a.ime, podatki)
@@ -328,20 +283,21 @@ def poslji(a, service, backend, poraba, posli):
 
 
 def prevzemi(a, service):
-    """Izidi in obračun za posle brez izidov ali brez obračuna; izidi gredo v rezultati/qpu/<ime>.json, obračun v
-    dnevnik. Neuspel posel zapiše in nadaljuje z ostalimi. Popolnega zapisa (izidi in obračun) ne prepiše."""
+    """Izidi in obračun za posle, ki ju še nimajo: izidi v rezultati/qpu/<ime>.json, obračun v dnevnik.
+
+    Neuspel posel zapiše in nadaljuje z ostalimi. Popolnega zapisa ne prepiše."""
     podatki = beri(a.ime)
     for zapis in podatki["posli"]:
         if not zapis["job_id"] or str(zapis["job_id"]).startswith("lokalno"):
             continue
         if zapis["stetja"] is not None and zapis.get("poraba_s") is not None:
-            dopolni_zapis(zapis["job_id"], zapis["poraba_s"])  # le dnevnik, brez IBM in brez pisanja zapisa
+            dopolni_zapis(zapis["job_id"], zapis["poraba_s"])  # le dnevnik
             continue
         job = service.job(zapis["job_id"])
         if zapis["stetja"] is None:
             try:
                 zapis["stetja"], zapis["stanje"] = stetja_iz_rezultata(job.result()), "DONE"
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if not str(zapis.get("stanje") or "").startswith("CANCELLED"):  # razlog preklica ostane zapisan
                     zapis["stanje"] = f"NAPAKA: {e}"
         if zapis.get("poraba_s") is None:
@@ -365,8 +321,6 @@ def main():
     ap.add_argument("--shots", type=int, default=1000)
     ap.add_argument("--kopije-od", type=int, nargs=2, default=None, metavar=("N0", "R"),
                     help="vsako vezje z N >= N0 je v poslu R-krat (R x --shots posnetkov na vhod)")
-    ap.add_argument("--kalibracija", action="store_true",
-                    help="dodaj dve vezji za preverbo branja (vsi izbrani kubiti v stanju 0 in v stanju 1)")
     ap.add_argument("--max-sekund", type=float, default=None, help="skupna meja porabe, dogovorjena pred zagonom")
     ap.add_argument("--max-poslov", type=int, default=None, help="največ poslov, dogovorjeno pred zagonom")
     ap.add_argument("--faktor-omejitve", type=float, default=2.0,
@@ -400,7 +354,7 @@ def main():
         print(f"procesor {backend.name}: deluje={st.operational}, v vrsti={st.pending_jobs}")
         if not st.operational:
             sys.exit("Procesor ne deluje: nič ni poslano.")
-    posli = [zgradi_posel_igre(backend, a.n, a.k, a.seme, a.kalibracija, a.kopije_od)]
+    posli = [zgradi_posel_igre(backend, a.n, a.k, a.seme, a.kopije_od)]
     izpisi_nacrt(posli, a, poraba)
     if a.ukaz == "nacrt":
         print("\nnacrt: nič ni bilo poslano.")

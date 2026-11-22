@@ -1,7 +1,4 @@
-"""Preverbe izbire kubitov, vezja GHZ in šumnega simulatorja, ki jih uporablja igra GHZ.
-
-Zagon: .venv/bin/python -m pytest tests -q
-"""
+"""Izbira kubitov, vezje GHZ in šumni simulator."""
 
 import sys
 from pathlib import Path
@@ -12,14 +9,14 @@ from qiskit import QuantumCircuit
 from qiskit_ibm_runtime.fake_provider import FakeFez
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-import ghz  # noqa: E402
+import ghz
 
 BACKEND = FakeFez()
 
 
 def test_drevo_starsi_pred_otroki_in_brez_swap():
-    """Vsak starš je v vrstnem redu pred otrokom, vsaka povezava drevesa je povezava čipa, po prevajanju pa ostane
-    N - 1 dvokubitnih vrat (prevajalnik ni dodal nobenih vrat SWAP)."""
+    """Starš je v vrstnem redu pred otrokom, povezave drevesa so povezave čipa, po prevajanju ostane N - 1
+    dvokubitnih vrat."""
     n = 12
     kubiti, starsi = ghz.najdi_drevo(BACKEND, n)
     assert len(set(kubiti)) == n and starsi[0] is None
@@ -35,7 +32,7 @@ def test_drevo_starsi_pred_otroki_in_brez_swap():
 
 
 def _izven_diagonale(kanal):
-    """Največji element matrike prenosa Paulijev (PTM) izven diagonale; Paulijev kanal ima tam same ničle."""
+    """Največji element matrike prenosa Paulijev (PTM) izven diagonale; pri Paulijevem kanalu je 0."""
     from qiskit.quantum_info import PTM
 
     m = PTM(kanal).data
@@ -43,9 +40,8 @@ def _izven_diagonale(kanal):
 
 
 def test_pauli_priblizek_ohrani_povprecno_zvestobo():
-    """Napaka vrat CZ kot v šumnem modelu (depolarizacija + termična relaksacija obeh kubitov s časi T1, T2 in
-    trajanjem vrat iz FakeFez): po Paulijevem približku ima kanal enako povprečno zvestobo in je Paulijev, prvotni
-    kanal pa ni bil (relaksacija ni Paulijev kanal)."""
+    """Napaka vrat CZ kot v šumnem modelu (depolarizacija in termična relaksacija s T1, T2 in trajanjem vrat iz
+    FakeFez): Paulijev približek ohrani povprečno zvestobo in da Paulijev kanal."""
     from qiskit.quantum_info import Kraus, average_gate_fidelity
     from qiskit_aer.noise import NoiseModel, depolarizing_error, thermal_relaxation_error
 
@@ -60,13 +56,13 @@ def test_pauli_priblizek_ohrani_povprecno_zvestobo():
     ghz._pauli_priblizek_dvokubitnih(model, "cz")
     nova = Kraus(model._local_quantum_errors["cz"][(a, b)])
     assert average_gate_fidelity(nova) == pytest.approx(average_gate_fidelity(Kraus(napaka)), abs=1e-9)
-    assert average_gate_fidelity(nova) < 1 - 1e-6  # kanal ni identiteta, test ni prazen
+    assert average_gate_fidelity(nova) < 1 - 1e-6  # kanal ni identiteta
     assert _izven_diagonale(nova) < 1e-9
     assert _izven_diagonale(Kraus(napaka)) > 1e-6
 
 
 class _IdealnoZNesimetricnimBranjem(ghz.SumniSimulator):
-    """Idealen simulator, napako branja (nesimetrično) pa dodamo enako kot pri šumnem modelu."""
+    """Simulator brez šuma vrat, z nesimetrično napako branja."""
 
     def __init__(self, branje):
         from qiskit_aer import AerSimulator
@@ -78,14 +74,13 @@ class _IdealnoZNesimetricnimBranjem(ghz.SumniSimulator):
 
 
 def _delez_enk(stetje, n):
-    """Delež enic na klasičnem bitu i (v nizu Qiskit je bit 0 skrajno desno)."""
+    """Delež enic na klasičnem bitu i (bit 0 je v nizu skrajno desno)."""
     vseh = sum(stetje.values())
     return np.array([sum(v for niz, v in stetje.items() if niz[n - 1 - i] == "1") / vseh for i in range(n)])
 
 
 def test_sumni_simulator_preklopi_bit_z_napako_merjenega_kubita():
-    """Vsak klasični bit se preklopi z napako fizičnega kubita, ki ga meri, v pravi smeri: iz stanja 0 z p(1|0),
-    iz stanja 1 z p(0|1). Napake so po kubitih različne in obe smeri ločeni, zato napačna preslikava ali smer pade."""
+    """Klasični bit se obrne z napako kubita, ki ga meri: iz stanja 0 z p(1|0), iz stanja 1 z p(0|1)."""
     n = 6
     z = ghz.zasnova_za(BACKEND, n)
     branje = {q: np.array([[1 - p10, p10], [p01, 1 - p01]])
@@ -103,8 +98,7 @@ def test_sumni_simulator_preklopi_bit_z_napako_merjenega_kubita():
 
 
 def test_sumni_simulator_bere_nesimetricno_branje_iz_kalibracije():
-    """Šumni simulator FakeFez: branje iz kalibracije (obe smeri ločeno), napake vrat CZ pa so Paulijeve (približek je
-    res uporabljen v modelu, ne le v pomožni funkciji)."""
+    """Šumni simulator FakeFez bere p(1|0) in p(0|1) iz properties(); napake vrat CZ v modelu so Paulijeve."""
     from qiskit.quantum_info import Kraus
 
     sim = ghz.SumniSimulator(BACKEND)
@@ -124,7 +118,7 @@ def test_sumni_simulator_bere_nesimetricno_branje_iz_kalibracije():
 
 
 def test_izkljuceni_kubiti_niso_izbrani(monkeypatch):
-    """Kubit iz privzete postavitve po izključitvi ni več v njej, število kubitov pa ostane enako."""
+    """Izključeni kubiti niso v postavitvi, število kubitov ostane enako."""
     n = 25
     osnovna = ghz.zasnova_za(BACKEND, n).postavitev
     izkljuceni = {osnovna[1], osnovna[-1]}

@@ -1,4 +1,4 @@
-"""Igra GHZ: pravila, klasična meja, kvantna strategija na idealnem simulatorju, analiza in zaokroževanje tabele."""
+"""Igra GHZ: pravila, klasična meja, kvantna strategija na idealnem simulatorju, analiza in shema čipa."""
 
 import itertools
 import math
@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-import ghz  # noqa: E402
-import igra  # noqa: E402
+import ghz
+import igra
 
 
 def test_cilj_in_veljavnost():
@@ -41,7 +41,6 @@ def test_klasicna_meja_zavrne_manj_kot_tri_igralce():
 
 
 def test_izcrpni_pregled_zavrne_prevelik_n():
-    """Nad N = 16 izčrpni pregled zavrne, preden ustvari tabelo 2^N števil (N = 30 bi porabil ~4 GB)."""
     with pytest.raises(ValueError, match="le do N = 16"):
         igra.klasicna_meja_izcrpno(igra.NAJVEC_IZCRPNO + 1)
 
@@ -68,7 +67,7 @@ def test_kvantna_strategija_idealno_vedno_zmaga(zasnova):
 
 
 def test_brez_vrat_s_strategija_ne_zmaga_vedno():
-    # napačna strategija (vsi merijo v isti bazi) pri vhodu 110 izgubi: preverba, da test zgoraj ni prazen
+    # brez vrat S igralci pri vhodu 110 vedno izgubijo
     z = ghz.ghz_drevo(list(range(3)), [None, 0, 1])
     napacno = igra.vezje_igre(z.priprava, [0, 0, 0])
     stetje = ghz.simulator().pozeni([napacno], 200)[0]
@@ -86,7 +85,7 @@ def test_vezje_zavrne_neveljaven_vhod():
 def test_statistika_na_rocnih_vrednostih():
     s = igra.statistika([0.6, 0.8], 100)
     assert s["povprecje"] == pytest.approx(0.7)
-    assert s["sigma"] == pytest.approx(0.1)  # razpršenost med vhodoma prevlada nad binomsko napako
+    assert s["sigma"] == pytest.approx(0.1)  # prevlada razpršenost med vhodoma
     enaka = igra.statistika([0.5, 0.5], 100)
     assert enaka["sigma"] == pytest.approx(math.sqrt(0.25 / 200))  # brez razpršenosti ostane binomska napaka
 
@@ -115,7 +114,7 @@ def test_analiza_qpu_zavrne_manjkajoce_izide_in_napacno_stevilo_posnetkov():
 
 @pytest.mark.parametrize("n", [3, 4])
 def test_klasicna_meja_neodvisno_po_vseh_strategijah(n):
-    # vsak igralec izbere eno od štirih funkcij svojega bita; pregled vseh 4^n kombinacij brez pomoči igra.py
+    # pregled vseh 4^n kombinacij štirih funkcij enega bita, brez funkcij iz igra.py
     vhodi_ = [x for x in itertools.product((0, 1), repeat=n) if sum(x) % 2 == 0]
     funkcije = [(0, 0), (0, 1), (1, 0), (1, 1)]  # (odgovor pri x=0, odgovor pri x=1)
     najboljsa = 0.0
@@ -126,8 +125,7 @@ def test_klasicna_meja_neodvisno_po_vseh_strategijah(n):
 
 
 def test_vsi_odgovorijo_1_zmagajo_pri_treh_od_stirih_vhodov():
-    """Klasična strategija "vsak odgovori 1" pri N = 3: pariteta odgovorov je vedno 1, zato izgubi le pri vhodu 000
-    in doseže klasično mejo 3/4."""
+    """Strategija "vsak odgovori 1" pri N = 3 izgubi le pri vhodu 000 in doseže klasično mejo 3/4."""
     xs = igra.vhodi(3, 4, np.random.default_rng(0))  # vsi štirje veljavni vhodi
     zmage = [igra.delez_zmag({"111": 1}, x) for x in xs]
     assert sorted(map(tuple, xs)) == [(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)]
@@ -136,16 +134,33 @@ def test_vsi_odgovorijo_1_zmagajo_pri_treh_od_stirih_vhodov():
 
 
 def test_zaokrozevanje_tabele_polovica_navzgor():
-    """Kot v poročilu: 0,53125 -> 0,5313 in 0,8115 -> 0,812 (oblika f"{x:.4f}" bi dala 0,5312 in 0,811)."""
+    """0,53125 -> 0,5313 in 0,8115 -> 0,812."""
     assert igra._st(igra.klasicna_meja(10), 4) == "0{,}5313"
     assert igra._st(0.8115) == "0{,}812"
-    assert igra._z_napako(0.8115, 0.0085) == "0{,}812(9)"
-    assert igra._z_napako(0.94875, 0.0030) == "0{,}949(3)"
+    assert igra._z_napako(0.8115, 0.0085) == "0{,}812 $\\pm$ 0{,}009"
+    assert igra._z_napako(0.94875, 0.0030) == "0{,}949 $\\pm$ 0{,}003"
 
 
-def test_samo_napake_branja_na_rocnih_vrednostih():
-    """Dva kubita z napako branja 0,1 in 0,2 (povprečje p10 in p01): pariteta ostane prava z verjetnostjo
-    1/2 + 1/2 x 0,8 x 0,6 = 0,74; brez napak je ocena 1."""
-    branje = {"kubiti": [7, 9, 4], "p10": [0.05, 0.3, 0.0], "p01": [0.15, 0.1, 0.0]}
-    assert igra.samo_napake_branja([7, 9], branje) == pytest.approx(0.74)
-    assert igra.samo_napake_branja([4], branje) == 1.0
+@pytest.fixture(scope="module")
+def fez():
+    from qiskit_ibm_runtime.fake_provider import FakeFez
+
+    return FakeFez()
+
+
+@pytest.mark.parametrize("n", [5, 20, 75])
+def test_shema_cipa_obnovi_drevo_iz_postavitve(fez, n):
+    """Povezave FakeFez ustrezajo shemi čipa; drevo, obnovljeno iz postavitve in uporabnih povezav, je enako drevesu
+    iz `najdi_drevo`."""
+    povezave = sorted({tuple(sorted(p)) for p in fez.coupling_map.get_edges()})
+    xy = igra.koordinate_cipa(povezave, fez.num_qubits)
+    assert len(set(xy.values())) == fez.num_qubits == 156
+    sosedi = ghz.napake(fez)[2]
+    uporabne = sorted({tuple(sorted((a, b))) for a in sosedi for b in sosedi[a]})
+    postavitev, starsi = ghz.najdi_drevo(fez, n)
+    assert igra.drevo_iz_postavitve(postavitev, uporabne) == starsi
+
+
+def test_shema_cipa_zavrne_povezavo_med_nesosedoma():
+    with pytest.raises(ValueError):
+        igra.koordinate_cipa([(0, 2)])

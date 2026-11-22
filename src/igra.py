@@ -1,18 +1,17 @@
-"""Igra GHZ (Merminova paritetna igra) na stanjih GHZ: vezja, delež zmag, klasična meja, simulacije, tabela in graf.
+"""Igra GHZ (Merminova paritetna igra): vezja, delež zmag, klasična meja, simulacija, tabeli in grafa.
 
-Pravila (Brassard, Broadbent in Tapp, 2005): N >= 3 igralcev, igralec i dobi bit x_i, vsota vseh x_i je soda.
-Igralci se med igro ne smejo pogovarjati; vsak odgovori z bitom y_i. Zmagajo, če velja
+Pravila (Brassard, Broadbent in Tapp, 2005): N >= 3 igralcev, igralec i dobi bit x_i, vsota vseh x_i je soda. Igralci
+med igro ne komunicirajo; vsak odgovori z bitom y_i. Zmagajo, če velja
     y_1 xor ... xor y_N = (x_1 + ... + x_N) / 2 mod 2.
-Kvantna strategija: igralci si vnaprej razdelijo stanje GHZ. Igralec z x_i = 1 na svojem kubitu izvede vrata S, nato
-vsi izvedejo vrata H in kubit izmerijo; izid je odgovor y_i. Z idealnim stanjem GHZ zmagajo vedno.
-Klasična meja: brez prepletenosti nobena strategija ne zmaga z verjetnostjo, večjo od 1/2 + 2^(-ceil(N/2)), če so
-vhodi enakomerno naključni med veljavnimi. `klasicna_meja_izcrpno` to za majhne N preveri s pregledom vseh strategij.
+Kvantna strategija: stanje GHZ, igralec z x_i = 1 izvede vrata S, nato vsi vrata H in meritev.
+Klasična meja: 1/2 + 2^(-ceil(N/2)) pri enakomerno naključnih veljavnih vhodih.
 
 Ukazi:
-  meja     primerja formulo klasične meje z izčrpnim pregledom strategij
+  meja     formula klasične meje in izčrpni pregled strategij
   sim      idealni in šumni simulator (FakeFez) -> rezultati/sim/<ime>.json
   tabela   vrstice tabel za poročilo iz simulacije in zagona na procesorju
   graf     porocilo-seminarska-naloga/img/ghz_igra.pdf
+  cip      porocilo-seminarska-naloga/img/ibm_fez_cip.pdf: povezave čipa in kubiti, izbrani za en N (npr. --n 20)
 """
 
 from __future__ import annotations
@@ -28,15 +27,16 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import ghz  # noqa: E402
+import ghz
 
 KOREN = Path(__file__).resolve().parent.parent
 SIM = KOREN / "rezultati" / "sim"
 QPU = KOREN / "rezultati" / "qpu"
 SLIKA = KOREN / "porocilo-seminarska-naloga" / "img" / "ghz_igra.pdf"
-# seme obeh simulatorjev; klic za i-ti N v istem zagonu dobi seme SEME_SIMULATORJA + 1000 i (glej ghz.py)
+SLIKA_CIPA = KOREN / "porocilo-seminarska-naloga" / "img" / "ibm_fez_cip.pdf"
+# i-ti klic simulatorja v istem zagonu dobi seme SEME_SIMULATORJA + 1000 i
 SEME_SIMULATORJA = 11
-# izčrpni pregled ima 2^N korakov nad 2^(N-1) vhodi: N = 16 traja nekaj sekund, N = 30 bi porabil gigabajte pomnilnika
+# izčrpni pregled ima 2^N korakov nad 2^(N-1) vhodi
 NAJVEC_IZCRPNO = 16
 
 
@@ -44,7 +44,7 @@ NAJVEC_IZCRPNO = 16
 
 
 def veljaven(x):
-    """Ali je x niz bitov s sodo vsoto (pogoj igre za vhod)."""
+    """Ali je x niz bitov s sodo vsoto."""
     return all(b in (0, 1) for b in x) and sum(x) % 2 == 0
 
 
@@ -56,7 +56,7 @@ def cilj(x):
 
 
 def klasicna_meja(n):
-    """Največja verjetnost zmage brez prepletenosti pri enakomerno naključnih veljavnih vhodih."""
+    """Klasična meja 1/2 + 2^(-ceil(n/2))."""
     if n < 3:
         raise ValueError("igra je določena za vsaj 3 igralce")
     return 0.5 + 2.0 ** (-math.ceil(n / 2))
@@ -65,9 +65,8 @@ def klasicna_meja(n):
 def klasicna_meja_izcrpno(n):
     """Najboljša deterministična strategija, najdena s pregledom vseh.
 
-    Igralec pozna le svoj bit, zato so njegove strategije štiri: y_i = a_i x_i xor b_i. Pariteta odgovorov je tedaj
-    (a . x) xor b, kjer je b = xor vseh b_i; pregledamo vseh 2^n vektorjev a in oba b. Naključna strategija je
-    mešanica determinističnih, zato ne more biti boljša od najboljše med njimi."""
+    Strategija igralca je y_i = a_i x_i xor b_i, zato je pariteta odgovorov (a . x) xor b, kjer je b = xor vseh b_i.
+    Pregled gre po vseh 2^n vektorjih a in obeh b."""
     if n < 3:
         raise ValueError("igra je določena za vsaj 3 igralce")
     if n > NAJVEC_IZCRPNO:
@@ -91,7 +90,7 @@ def vhodi(n, k, rng):
     izbrani = {}
     while len(izbrani) < k:
         x = [int(b) for b in rng.integers(0, 2, n - 1)]
-        x.append(sum(x) % 2)  # zadnji bit poskrbi za sodo vsoto: enakomerno po veljavnih vhodih
+        x.append(sum(x) % 2)  # zadnji bit dopolni vsoto do sode
         izbrani.setdefault(tuple(x), x)
     return list(izbrani.values())
 
@@ -100,7 +99,7 @@ def vhodi(n, k, rng):
 
 
 def vezje_igre(priprava, x, oznaka=""):
-    """Priprava GHZ, nato poteza vsakega igralca: S pri x_i = 1, H, meritev."""
+    """Priprava GHZ, nato S pri x_i = 1, H in meritev."""
     if len(x) != priprava.num_qubits:
         raise ValueError("vhod mora imeti en bit na igralca")
     cilj(x)
@@ -124,8 +123,8 @@ def delez_zmag(stetje, x):
 def statistika(zmage, shots):
     """Povprečje deleža zmag po vhodih in njegova standardna napaka (sigma).
 
-    Sigma je večja od dveh ocen: razpršenosti deležev med vhodi (standardni odklon / koren iz števila vhodov) in
-    binomske napake zaradi končnega števila ponovitev (koren iz p(1-p) / število vseh ponovitev)."""
+    Sigma je večja od dveh ocen: standardni odklon med vhodi / koren(število vhodov) in binomska napaka
+    koren(p (1 - p) / število vseh ponovitev)."""
     m = float(np.mean(zmage))
     med_vhodi = float(np.std(zmage, ddof=1) / math.sqrt(len(zmage))) if len(zmage) > 1 else 0.0
     binomska = math.sqrt(max(m * (1 - m), 0.0) / (len(zmage) * shots))
@@ -133,7 +132,7 @@ def statistika(zmage, shots):
 
 
 def najglobje(vezja):
-    """Indeks najglobljega izmed vezij; njegove lastnosti navedemo v tabeli."""
+    """Indeks najglobljega vezja; njegove lastnosti so v tabeli."""
     return max(range(len(vezja)), key=lambda i: ghz.lastnosti(vezja[i])["globina"])
 
 
@@ -141,10 +140,10 @@ def najglobje(vezja):
 
 
 def simuliraj(ns, k, shots, ime, seme=5):
-    """Idealni in šumni simulator (FakeFez) za vsak N; N, ki so v datoteki že izračunani, preskoči.
+    """Idealni in šumni simulator (FakeFez) za vsak N; N, ki so že v datoteki, preskoči.
 
-    Seme klica simulatorja je odvisno od tega, koliko N je isti zagon že izračunal, zato se nadaljevani zagon
-    ujema s celotnim le, če gre po N v enakem vrstnem redu od začetka."""
+    Seme klica je odvisno od zaporedne številke N v zagonu, zato se nadaljevani zagon ujema s celotnim le pri enakem
+    vrstnem redu N od začetka."""
     from qiskit_ibm_runtime.fake_provider import FakeFez
 
     backend = FakeFez()
@@ -180,24 +179,22 @@ def simuliraj(ns, k, shots, ime, seme=5):
 
 
 def analiza_qpu(podatki):
-    """Delež zmag po N iz shranjenih izidov posla (rezultati/qpu/<ime>.json, zgrajenega s `qpu.py`).
-
-    Preveri, da ima vsak N toliko slovarjev izidov, kot je vhodov, in da ima vsak slovar vse posnetke."""
+    """Delež zmag po N iz izidov posla (rezultati/qpu/<ime>.json)."""
     vrstice = []
     for posel in podatki["posli"]:
         if not posel.get("stetja"):
             continue
         for p in posel["poskusi"]:
-            kopij = p.get("kopij", 1)  # zapis prve naloge nima kopij: eno vezje na vhod
+            kopij = p.get("kopij", 1)  # zapis prve naloge nima polja kopij
             stetja = posel["stetja"][p["zacetek"]:p["zacetek"] + p["st_vezij"]]
             if not len(stetja) == len(p["vhodi"]) * kopij == p["st_vezij"]:
                 raise ValueError(f"N={p['n']}: {len(stetja)} slovarjev izidov, {len(p['vhodi'])} vhodov, "
                                  f"kopij {kopij}, st_vezij {p['st_vezij']}")
             if any(sum(st.values()) != podatki["shots"] for st in stetja):
                 raise ValueError(f"N={p['n']}: slovar izidov nima {podatki['shots']} posnetkov")
-            if kopij > 1:  # kopije istega vhoda so zapored: njihove izide seštejemo
+            if kopij > 1:  # kopije istega vhoda so zapored, njihovi izidi se seštejejo
                 imena = (posel.get("imena_vezij") or [])[p["zacetek"]:p["zacetek"] + p["st_vezij"]]
-                if imena:  # ime kopije je <ime vezja>_p<c>: vsaka skupina mora imeti eno ime, skupine različna
+                if imena:  # ime kopije je <ime vezja>_p<c>
                     skupine = [{i.rsplit("_p", 1)[0] for i in imena[j * kopij:(j + 1) * kopij]}
                                for j in range(len(p["vhodi"]))]
                     if any(len(s) != 1 for s in skupine) or len(set().union(*skupine)) != len(skupine):
@@ -216,48 +213,11 @@ def analiza_qpu(podatki):
     return vrstice
 
 
-def analiza_branja(podatki):
-    """Napaka branja vsakega kubita iz dveh kalibracijskih vezij posla (če ju ima): p10 je delež posnetkov, v katerih
-    smo kubit v stanju 0 prebrali kot 1, p01 pa delež, v katerih smo kubit v stanju 1 prebrali kot 0.
-
-    Vrne None, če posel nima kalibracijskih vezij ali izidov."""
-    for posel in podatki["posli"]:
-        kal = posel.get("kalibracija")
-        if not kal or not posel.get("stetja"):
-            continue
-        kubiti = kal["kubiti"]
-        imena = (posel.get("imena_vezij") or [])[kal["zacetek"]:kal["zacetek"] + 2]
-        if kal["st_vezij"] != 2 or imena not in ([], ["kal_0", "kal_1"]):
-            raise ValueError(f"kalibracijski vezji nista na pričakovanem mestu (st_vezij {kal['st_vezij']}, {imena})")
-        nic, ena = posel["stetja"][kal["zacetek"]:kal["zacetek"] + 2]
-        shots = podatki["shots"]
-        if sum(nic.values()) != shots or sum(ena.values()) != shots:
-            raise ValueError(f"kalibracijski vezji nimata {shots} posnetkov")
-        if any(len(niz.replace(" ", "")) != len(kubiti) for st in (nic, ena) for niz in st):
-            raise ValueError(f"izid kalibracijskega vezja nima {len(kubiti)} bitov")
-
-        def delez_enic(stetje, i):  # klasični bit i je i-ti znak z desne
-            return sum(k for niz, k in stetje.items() if niz.replace(" ", "")[len(kubiti) - 1 - i] == "1") / shots
-
-        p10 = [delez_enic(nic, i) for i in range(len(kubiti))]
-        p01 = [1 - delez_enic(ena, i) for i in range(len(kubiti))]
-        napaka = [(a + b) / 2 for a, b in zip(p10, p01)]
-        najslabsi = max(range(len(kubiti)), key=napaka.__getitem__)
-        print(f"branje: {len(kubiti)} kubitov, povprečna napaka {float(np.mean(napaka)):.4f}, "
-              f"največja {napaka[najslabsi]:.4f} (kubit {kubiti[najslabsi]})")
-        return {"kubiti": kubiti, "shots": shots, "p10": p10, "p01": p01, "povprecje": float(np.mean(napaka)),
-                "najslabsi_kubit": kubiti[najslabsi], "najvecja": napaka[najslabsi],
-                "objavljena_napaka": kal.get("objavljena_napaka")}
-    return None
-
-
 # ------------------------------------------------------------------------------------ tabela in graf
 
 
 def _zaokrozi(x, mest):
-    """Desetiški zapis števila, zaokrožen na `mest` decimalk, polovica navzgor (0,53125 -> 0,5313; 0,8115 -> 0,812).
-
-    Oblika f"{x:.4f}" zaokroži dvojiško vrednost float, ki je lahko malo pod polovico, in zato včasih navzdol."""
+    """Zaokroži na `mest` decimalk, polovica navzgor (0,53125 -> 0,5313; 0,8115 -> 0,812)."""
     return Decimal(str(float(x))).quantize(Decimal(1).scaleb(-mest), rounding=ROUND_HALF_UP)
 
 
@@ -266,7 +226,8 @@ def _st(x, mest=3):
 
 
 def _z_napako(m, s, mest=3):
-    return f"{_st(m, mest)}({int(_zaokrozi(s, mest).scaleb(mest))})"
+    """Celica tabele z deležem zmag in standardno napako: 0,949 +- 0,003."""
+    return f"{_st(m, mest)} $\\pm$ {_st(s, mest)}"
 
 
 def _beri(mapa, ime):
@@ -275,7 +236,7 @@ def _beri(mapa, ime):
 
 
 def _datum(ime_qpu):
-    """Dan oddaje naloge kot 'd. m.' (iz rezultati/qpu/<ime>.json; čas oddaje je zapisan v UTC)."""
+    """Dan oddaje naloge kot 'd. m.' (čas oddaje je zapisan v UTC)."""
     pot = QPU / f"{ime_qpu}.json"
     if not pot.exists():
         return ""
@@ -283,36 +244,24 @@ def _datum(ime_qpu):
     return f"{int(cas[8:10])}. {int(cas[5:7])}."
 
 
-def samo_napake_branja(postavitev, branje):
-    """Ocena deleža zmag, če bi bile napake branja edina napaka. Vsak prebrani bit se neodvisno obrne z izmerjeno
-    verjetnostjo e (povprečje p10 in p01 tega kubita); pariteta odgovorov ostane prava, če je obratov sodo, torej z
-    verjetnostjo 1/2 + 1/2 * produkt(1 - 2 e)."""
-    napaka = {q: (a + b) / 2 for q, a, b in zip(branje["kubiti"], branje["p10"], branje["p01"])}
-    return 0.5 + 0.5 * math.prod(1 - 2 * napaka[q] for q in postavitev)
-
-
 def tabela_ponovitve(ime_qpu, ime_qpu2):
-    """Vrstice tabele ponovljene meritve: prva in druga naloga na procesorju pri istem N; zadnji stolpec je ocena
-    deleža zmag samo z izmerjenimi napakami branja (če ima druga naloga vezji za preverbo branja)."""
+    """Vrstice tabele z obema meritvama na procesorju."""
     prva, druga = _beri(QPU, f"{ime_qpu}_analiza"), _beri(QPU, f"{ime_qpu2}_analiza")
-    branje = json.loads((QPU / f"{ime_qpu2}_analiza.json").read_text()).get("branje")
 
     def kriterij(r, meja):
         return "da" if r["povprecje"] - 2 * r["sigma"] > meja else "ne"
 
-    print(f"\n% N & ibm_fez {_datum(ime_qpu)} & kriterij & ibm_fez {_datum(ime_qpu2)} & kriterij & ponovitev na vhod "
-          "& samo napake branja")
+    print(f"\n% N & ibm_fez {_datum(ime_qpu)} & kriterij & ibm_fez {_datum(ime_qpu2)} & kriterij & ponovitev na vhod")
     for n in sorted(druga):
         a, b = prva.get(n), druga[n]
         meja = klasicna_meja(n)
         print(" & ".join([str(n), _z_napako(a["povprecje"], a["sigma"]) if a else "--", kriterij(a, meja) if a else "--",
-                          _z_napako(b["povprecje"], b["sigma"]), kriterij(b, meja), str(b.get("shots", "")),
-                          _st(samo_napake_branja(b["postavitev"], branje)) if branje else "--"]) + r" \\")
+                          _z_napako(b["povprecje"], b["sigma"]), kriterij(b, meja), str(b.get("shots", ""))]) + r" \\")
 
 
 def tabela(ime_sim, ime_qpu):
     sim, qpu = _beri(SIM, ime_sim), _beri(QPU, f"{ime_qpu}_analiza")
-    print("% N & klasična meja & idealni sim. & šumni sim. & ibm_fez & nad mejo")
+    print("% N & p_klas & p_ideal & p_šum & p_ibm & p_ibm - 2 sigma > p_klas")
     for n in sorted(set(sim) | set(qpu)):
         s, q = sim.get(n), qpu.get(n)
         meja = klasicna_meja(n)
@@ -322,11 +271,14 @@ def tabela(ime_sim, ime_qpu):
                   _z_napako(q["povprecje"], q["sigma"]) if q else "--",
                   ("da" if q["povprecje"] - 2 * q["sigma"] > meja else "ne") if q else "--"]
         print(" & ".join(celice) + r" \\")
-    print("\n% N & globina pred & globina po & 2q pred & 2q po & trajanje [us]")
+    print("\n% N & globina pred & globina po & trajanje [us]")
     for n in sorted(qpu):
         pred, po = qpu[n]["lastnosti_pred"], qpu[n]["lastnosti_po"]
-        print(" & ".join([str(n), str(pred["globina"]), str(po["globina"]), str(pred["dvokubitna"]),
-                          str(po["dvokubitna"]), _st(po["trajanje_us"], 2)]) + r" \\")
+        print(" & ".join([str(n), str(pred["globina"]), str(po["globina"]), _st(po["trajanje_us"], 2)]) + r" \\")
+    # dvokubitnih vrat mora biti N - 1 pred prevajanjem in po njem
+    drugace = [n for n in sorted(qpu) if {qpu[n]["lastnosti_pred"]["dvokubitna"], qpu[n]["lastnosti_po"]["dvokubitna"]} != {n - 1}]
+    print("% dvokubitnih vrat je pri vseh N pred prevajanjem in po njem N - 1" if not drugace
+          else f"% POZOR: število dvokubitnih vrat ni N - 1 pri N = {drugace}")
 
 
 def graf(ime_sim, ime_qpu, ime_qpu2=None):
@@ -338,7 +290,7 @@ def graf(ime_sim, ime_qpu, ime_qpu2=None):
     qpu2 = _beri(QPU, f"{ime_qpu2}_analiza") if ime_qpu2 else {}
     plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42, "axes.spines.top": False, "axes.spines.right": False})
     fig, ax = plt.subplots(figsize=(4.6, 2.9))
-    # klasična meja pri vsakem celem N, ne le pri izmerjenih (stopnica se spremeni pri vsakem lihem N)
+    # klasična meja pri vsakem celem N, ne le pri izmerjenih
     vsi_n = list(range(3, max(set(sim) | set(qpu) | set(qpu2), default=3) + 1))
     ax.step(vsi_n, [klasicna_meja(n) for n in vsi_n], "k--", where="mid", linewidth=1, label="klasična meja")
     if sim:
@@ -360,16 +312,122 @@ def graf(ime_sim, ime_qpu, ime_qpu2=None):
     ax.set_xlabel("število igralcev $N$")
     ax.set_ylabel("delež zmag")
     ax.set_ylim(0.45, 1.02)
-    ax.yaxis.set_major_formatter(lambda y, _: f"{y:.1f}".replace(".", ","))  # decimalna vejica kot v poročilu
+    ax.yaxis.set_major_formatter(lambda y, _: f"{y:.1f}".replace(".", ","))  # decimalna vejica
     ax.legend(frameon=False, fontsize=7)
     fig.tight_layout()
     fig.savefig(SLIKA)
     print(f"shranjeno: {SLIKA.relative_to(KOREN)}")
 
 
+# ---------------------------------------------------------------------------------------- shema čipa
+
+
+def koordinate_cipa(povezave, st_kubitov=156):
+    """Položaj (x, y) vsakega kubita na shemi čipa Heron r2 s 156 kubiti (ibm_fez).
+
+    Čip ima 8 vrstic po 16 kubitov: kubit 20 v + s je v vrstici v in stolpcu s (s < 16). Med zaporednima vrsticama so
+    po 4 vmesni kubiti (20 v + 16 do 20 v + 19), ki povezujejo kubita istega stolpca. Povezava, ki na shemi ni med
+    sosedoma, sproži ValueError."""
+    if st_kubitov != 156:
+        raise ValueError("shema je narejena za čip s 156 kubiti")
+    sosedi = {q: set() for q in range(st_kubitov)}
+    for a, b in povezave:
+        sosedi[a].add(b)
+        sosedi[b].add(a)
+    xy = {}
+    for q in range(st_kubitov):
+        v, s = divmod(q, 20)
+        if s < 16:
+            xy[q] = (s, 2 * v)
+        else:
+            stolpci = {t % 20 for t in sosedi[q]}
+            if len(stolpci) != 1:
+                raise ValueError(f"vmesni kubit {q} ne povezuje dveh kubitov istega stolpca")
+            xy[q] = (stolpci.pop(), 2 * v + 1)
+    for a, b in povezave:
+        (xa, ya), (xb, yb) = xy[a], xy[b]
+        if abs(xa - xb) + abs(ya - yb) != 1:
+            raise ValueError(f"povezava {a}-{b} na shemi ni med sosedoma")
+    return xy
+
+
+def drevo_iz_postavitve(postavitev, povezave):
+    """Starši kubitov v drevesu GHZ iz shranjene postavitve (indeksi v postavitvi, začetni kubit ima None).
+
+    Starš kubita je njegov sosed na čipu, ki je v postavitvi najbolj spredaj (vrstni red BFS iz `ghz.najdi_drevo`).
+    Povezave z napako vrat 1 morajo biti izpuščene tudi tukaj."""
+    sosedi = {}
+    for a, b in povezave:
+        sosedi.setdefault(a, set()).add(b)
+        sosedi.setdefault(b, set()).add(a)
+    starsi = [None]
+    for i in range(1, len(postavitev)):
+        prej = [j for j in range(i) if postavitev[j] in sosedi.get(postavitev[i], ())]
+        if not prej:
+            raise ValueError(f"kubit {postavitev[i]} ni povezan z nobenim prejšnjim kubitom postavitve")
+        starsi.append(prej[0])
+    return starsi
+
+
+def graf_cipa(ime_qpu, n):
+    """Shema čipa ibm_fez s kubiti in vrati CNOT zagona `ime_qpu` pri N = n."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from qiskit_ibm_runtime.fake_provider import FakeFez
+
+    backend = FakeFez()  # iste povezave kot ibm_fez
+    povezave = sorted({tuple(sorted(p)) for p in backend.coupling_map.get_edges()})
+    xy = koordinate_cipa(povezave, backend.num_qubits)
+    poskus = next(p for p in json.loads((QPU / f"{ime_qpu}.json").read_text())["posli"][0]["poskusi"] if p["n"] == n)
+    postavitev = poskus["postavitev"]
+    starsi = drevo_iz_postavitve(postavitev, povezave)
+    # obnovljeno drevo mora dati enako globino vezja, kot je zapisana ob zagonu
+    priprava = ghz.ghz_drevo(postavitev, starsi).priprava
+    vezja = [vezje_igre(priprava, x) for x in poskus["vhodi"]]
+    if ghz.lastnosti(vezja[najglobje(vezja)])["globina"] != poskus["lastnosti_pred"]["globina"]:
+        raise ValueError("obnovljeno drevo se ne ujema z zapisano globino vezja")
+    drevo = {tuple(sorted((postavitev[i], postavitev[starsi[i]]))) for i in range(1, n)}
+
+    barva, siva, crnilo = "#D55E00", "0.62", "0.15"  # ista barva kot v grafu deleža zmag
+    visina = 0.74  # razmik med vrsticami glede na razmik med stolpci
+    tocka = {q: (x, -visina * y) for q, (x, y) in xy.items()}
+    plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42})
+    fig, ax = plt.subplots(figsize=(4.6, 3.6))
+    for a, b in povezave:
+        v_drevesu = (a, b) in drevo
+        ax.plot(*zip(tocka[a], tocka[b]), color=barva if v_drevesu else siva, linewidth=2.6 if v_drevesu else 0.7,
+                solid_capstyle="round", zorder=2 if v_drevesu else 1)
+    for q, (x, y) in tocka.items():
+        izbran, zacetni = q in postavitev, q == postavitev[0]
+        ax.add_patch(plt.Circle((x, y), 0.31, facecolor=barva if izbran else "white",
+                                edgecolor="black" if zacetni else (barva if izbran else siva),
+                                linewidth=1.6 if zacetni else 0.7, zorder=3))
+        ax.text(x, y, str(q), ha="center", va="center_baseline", fontsize=5.2, zorder=4,
+                color="black" if izbran else "0.35")
+    ax.set_xlim(-0.6, 15.6)
+    ax.set_ylim(-visina * 14 - 0.6, 0.6)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    krog = dict(marker="o", linestyle="none", markersize=7)
+    ax.legend(handles=[
+        Line2D([], [], markerfacecolor="white", markeredgecolor=siva, markeredgewidth=0.7, **krog),
+        Line2D([], [], color=siva, linewidth=0.7),
+        Line2D([], [], markerfacecolor=barva, markeredgecolor=barva, markeredgewidth=0.7, **krog),
+        Line2D([], [], markerfacecolor=barva, markeredgecolor="black", markeredgewidth=1.6, **krog),
+        Line2D([], [], color=barva, linewidth=2.6)],
+        labels=["kubit", "povezava", f"izbran za $N={n}$", "začetni kubit (H)", "vrata CNOT"],
+        loc="upper center", bbox_to_anchor=(0.5, 0.02), ncol=5, frameon=False, fontsize=7, labelcolor=crnilo,
+        handlelength=1.4, handletextpad=0.5, columnspacing=1.2)
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0.07)
+    fig.savefig(SLIKA_CIPA)
+    print(f"shranjeno: {SLIKA_CIPA.relative_to(KOREN)}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("ukaz", choices=["meja", "sim", "tabela", "graf"])
+    ap.add_argument("ukaz", choices=["meja", "sim", "tabela", "graf", "cip"])
     ap.add_argument("--n", type=int, nargs="+", default=[3, 5, 10])
     ap.add_argument("--k", type=int, default=8, help="število vhodov na N")
     ap.add_argument("--shots", type=int, default=1000)
@@ -388,6 +446,10 @@ def main():
         tabela(a.ime, a.qpu)
         if a.qpu2:
             tabela_ponovitve(a.qpu, a.qpu2)
+    elif a.ukaz == "cip":
+        if len(a.n) != 1:
+            ap.error("cip potrebuje natanko en N, npr. --n 20")
+        graf_cipa(a.qpu, a.n[0])
     else:
         graf(a.ime, a.qpu, a.qpu2)
 
